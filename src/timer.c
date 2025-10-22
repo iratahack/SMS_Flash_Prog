@@ -2,20 +2,17 @@
 #include <avr/interrupt.h>
 
 // System ticks count
-static unsigned int ticks;
+volatile uint16_t ticks = 0;
 
 //
 // Timer ISR, triggers every 10ms
 //
 ISR(TIMER2_COMPA_vect)
 {
-    static unsigned char c = 0;
-    time_t timer;
-
-    // Toggle the LED every second
-    if (c++ == 99)
+    static uint8_t counter = 0;
+    if (++counter >= 100)
     {
-        c = 0;
+        counter = 0;
         system_tick();
     }
     ticks++;

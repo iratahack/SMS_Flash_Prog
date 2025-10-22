@@ -1,5 +1,6 @@
 PROJ=SMSFlasher.bin
 CC=avr-gcc
+CXX=avr-g++
 STRIP=avr-strip
 SIZE=avr-size
 OBJDUMP=avr-objdump
@@ -8,7 +9,7 @@ MCU=atmega328p
 CLK=16000000UL
 CFLAGS=-O3 -DF_CPU=$(CLK) -mmcu=$(MCU)
 
-CSRC:=$(wildcard *.c)
+CSRC:=$(wildcard *.c) $(wildcard *.cpp)
 OBJS:=$(CSRC:.c=.o)
 
 .PHONY: all clean download dis
@@ -20,6 +21,9 @@ clean:
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 $(PROJ): $(OBJS)
 	$(CC) -mmcu=$(MCU) $^ -o $@
