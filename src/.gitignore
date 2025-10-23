@@ -1,3 +1,4 @@
 *.o
 *.hex
+*.map
 SMSFlasher.bin

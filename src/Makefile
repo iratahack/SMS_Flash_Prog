@@ -17,7 +17,7 @@ OBJS:=$(CSRC:.c=.o)
 all: $(PROJ)
 
 clean:
-	rm -f $(PROJ) *.o *.hex
+	rm -f $(PROJ) *.o *.hex *.map
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -26,7 +26,7 @@ clean:
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 $(PROJ): $(OBJS)
-	$(CC) -mmcu=$(MCU) $^ -o $@
+	$(CC) -Wl,-Map=$(PROJ).map -mmcu=$(MCU) $^ -o $@
 	$(SIZE) --format=avr --mcu=atmega328p $@
 
 %.hex: %

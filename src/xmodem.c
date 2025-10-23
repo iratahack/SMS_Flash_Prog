@@ -51,6 +51,7 @@ extern volatile uint16_t ticks;
  *----------------------------------------------------------------------------*/
 /** The definitions are followed by the X/Ymodem protocol */
 #define XMDM_SOH 0x01 /**< Start of heading */
+#define XMDM_STX 0x02 /**< Start of text */
 #define XMDM_EOT 0x04 /**< End of text */
 #define XMDM_ACK 0x06 /**< Acknowledge  */
 #define XMDM_NAK 0x15 /**< negative acknowledge */
@@ -58,7 +59,6 @@ extern volatile uint16_t ticks;
 #define XMDM_ESC 0x1b /**< Escape */
 
 #define CRC16POLY 0x1021 /**< CRC 16 polynom */
-#define PKTLEN 128       /**< Packet length */
 
 #define UART_IsRxReady() (UCSR0A & (1 << RXC0))
 
@@ -153,14 +153,14 @@ static uint16_t XMODEM_Getbytes(int8_t *pData, uint32_t length)
  *      3 retransmit of previous good packet
  *     -1 other error
  */
-static int8_t XMODEM_GetPacket(int8_t *pData, uint8_t ucSno)
+static int8_t XMODEM_GetPacket(int8_t *pData, uint8_t ucSno, uint16_t size)
 {
     uint8_t cpSeq[2];
     uint16_t uwCrc, uwXcrc;
 
     XMODEM_Getbytes((int8_t *)cpSeq, 2);
 
-    uwXcrc = XMODEM_Getbytes(pData, PKTLEN);
+    uwXcrc = XMODEM_Getbytes(pData, size);
 
     /* An "endian independent way to combine the CRC bytes. */
     uwCrc = (uint16_t)XMODEM_GetChar() << 8;
@@ -203,6 +203,7 @@ extern uint32_t XMODEM_ReceiveFile(int8_t *pBuffer, void (*processBlock)(int8_t 
     int8_t done = 0;
     uint8_t seqNo = 1;
     uint32_t size = 0;
+    uint16_t pktSize;
 
     /* Wait and put 'C' till start xmodem transfer */
     while (1)
@@ -228,16 +229,22 @@ extern uint32_t XMODEM_ReceiveFile(int8_t *pBuffer, void (*processBlock)(int8_t 
         {
         /* Start of transfer */
         case XMDM_SOH:
-            done = XMODEM_GetPacket(pBuffer, seqNo);
+        case XMDM_STX:
+            if (c == XMDM_SOH)
+                pktSize = 128;
+            else
+                pktSize = 1024;
+
+            done = XMODEM_GetPacket(pBuffer, seqNo, pktSize);
 
             if (done == 0)
             {
                 // Call the process block function if provided
                 if (processBlock != NULL)
-                    processBlock(pBuffer, PKTLEN);
+                    processBlock(pBuffer, pktSize);
 
                 seqNo++;
-                size += PKTLEN;
+                size += pktSize;
                 XMODEM_PutChar(XMDM_ACK);
             }
             else

@@ -16,7 +16,7 @@ extern void initTimer(void);
 extern void updateCRC32(uint32_t *crc, const uint8_t data);
 
 // XMODEM receive buffer
-static int8_t buffer[128];
+static int8_t buffer[1024];
 // Address pointer for flash programming
 static uint32_t flashAddress;
 // Flash size in bytes
