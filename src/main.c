@@ -1,9 +1,10 @@
 #include <stdio.h>
-#include <string.h>
 #include <avr/io.h>
-#include <avr/sleep.h>
-#include <avr/interrupt.h>
-#include <time.h>
+#include <util/delay.h>
+#include <avr/pgmspace.h>
+
+// Put printf strings in program memory (flash)
+#define printf(str, ...) printf_P(PSTR(str), ##__VA_ARGS__)
 
 #define RCLK_PIN PC0
 #define _CE_PIN PC1
@@ -157,6 +158,7 @@ void processBlock(int8_t *block, uint16_t length)
         writeFlashByte(0x2aaa, 0x55);             // Unlock command
         writeFlashByte(0x5555, 0xa0);             // Write command
         writeFlashByte(flashAddress++, block[i]); // Write data byte
+        _delay_us(10);
         updateCRC32(&progCRC32, block[i]);
     }
 }
@@ -237,7 +239,7 @@ int main(void)
         printf("Menu:\n");
         printf("1 ........ Erase Flash\n");
         printf("2 ........ Blank Check Flash\n");
-        printf("3 ........ Program Flash\n");
+        printf("3 ........ Program Flash (XMODEM download)\n");
         printf("4 ........ Verify Flash\n");
         printf("Select an option: ");
 
@@ -246,6 +248,7 @@ int main(void)
         switch (input)
         {
         case '1':
+            printf("\nErasing flash...\n");
             // Erase Flash
             writeFlashByte(0x5555, 0xaa); // Unlock command
             writeFlashByte(0x2aaa, 0x55); // Unlock command
@@ -253,11 +256,14 @@ int main(void)
             writeFlashByte(0x5555, 0xaa); // Unlock command
             writeFlashByte(0x2aaa, 0x55); // Unlock command
             writeFlashByte(0x5555, 0x10); // Chip erase command
-            printf("\nFlash Erase Command Issued.\n");
+            _delay_ms(100);               // Wait for erase to complete
+            printf("\nErase complete.\n");
+            printf("Press any key to continue...\n");
+            getchar();
             break;
         case '2':
             // Blank Check Flash
-            printf("\nPerforming Blank Check...\n");
+            printf("\nPerforming blank check...\n");
             for (flashAddress = 0; flashAddress < flashSize; flashAddress++)
             {
                 if (readFlashByte(flashAddress) != 0xFF)
@@ -266,16 +272,26 @@ int main(void)
                     break;
                 }
             }
+            if (flashAddress == flashSize)
+            {
+                printf("\nBlank check successful.\n");
+            }
+            printf("Press any key to continue...\n");
+            getchar();
             break;
         case '3':
+            printf("\nStarting XMODEM file receive for programming...\n");
             // Program Flash
             flashAddress = 0;
             progCRC32 = 0xFFFFFFFF;
             XMODEM_ReceiveFile(buffer, processBlock);
+            printf("\nProgramming complete. Programmed CRC32: 0x%08lX\n", progCRC32);
+            printf("Press any key to continue...\n");
+            getchar();
             break;
         case '4':
             // Verify Flash
-            printf("\nVerifying Flash...\n");
+            printf("\nVerifying flash...\n");
             flashCRC32 = 0xFFFFFFFF;
             for (flashAddress = 0; flashAddress < flashSize; flashAddress++)
             {
