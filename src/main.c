@@ -241,6 +241,8 @@ int main(void)
         printf("2 ........ Blank Check Flash\n");
         printf("3 ........ Program Flash (XMODEM download)\n");
         printf("4 ........ Verify Flash\n");
+        printf("5 ........ Read Byte\n");
+        printf("6 ........ Write Byte\n");
         printf("Select an option: ");
 
         input = getchar();
@@ -308,6 +310,32 @@ int main(void)
             }
             printf("Press any key to continue...\n");
             getchar();
+            break;
+        case '5':
+            {
+                uint32_t address;
+                printf("\nEnter address to read (hex): 0x");
+                scanf("%lx", &address);
+                uint8_t data = readFlashByte(address);
+                printf("Data at address 0x%06lX: 0x%02X\n", address, data);
+                printf("Press any key to continue...\n");
+                getchar(); // Consume newline
+                getchar(); // Wait for key
+            }
+            break;
+        case '6':
+            {
+                uint32_t address;
+                uint8_t data;
+                printf("\nEnter address to write (hex): 0x");
+                scanf("%lx", &address);
+                printf("Enter data to write (hex): 0x");
+                scanf("%hhx", &data);
+                writeFlashByte(address, data);
+                printf("Press any key to continue...\n");
+                getchar(); // Consume newline
+                getchar(); // Wait for key
+            }
             break;
         default:
             break;

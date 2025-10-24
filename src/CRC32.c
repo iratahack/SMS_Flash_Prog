@@ -5,6 +5,7 @@
 //
 
 #include <stdio.h>
+#include <avr/pgmspace.h>
 
 // Conditionally use pgm memory if it is available.
 
