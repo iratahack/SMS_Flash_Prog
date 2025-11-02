@@ -81,7 +81,7 @@ void disable_data_pins_pullups(void)
 // Read the 8-bit data from the data pins D2-D9
 uint8_t read_data_pins(void)
 {
-    return (PORTD & 0b11111100) | (PORTB & 0b00000011);
+    return (PIND & 0b11111100) | (PINB & 0b00000011);
 }
 
 // Toggle the RCLK input on the 74hc595 to latch data
@@ -99,29 +99,7 @@ void SPI_sendAddress(uint16_t address)
     toggleRCLK();
 }
 
-uint8_t readFlashByte(uint32_t address)
-{
-    uint8_t data;
-
-    // Set data pins to input
-    set_data_pins_input();
-    enable_data_pins_pullups();
-
-    // Send address
-    SPI_sendAddress(address);
-    // _CE low, _RD low
-    PORTC &= ~(_BV(_CE_PIN) | _BV(_RD_PIN));
-
-    // Read data from data pins
-    data = read_data_pins();
-
-    // _CE high, _RD high
-    PORTC |= _BV(_RD_PIN) | _BV(_CE_PIN);
-
-    return data;
-}
-
-void writeFlashByte(uint32_t address, uint8_t data)
+void writeCartByte(uint32_t address, uint8_t data)
 {
     // Set data pins as output
     disable_data_pins_pullups();
@@ -129,8 +107,8 @@ void writeFlashByte(uint32_t address, uint8_t data)
 
     // Send address
     SPI_sendAddress(address);
-    // _CE low, _RD high
-    PORTC = PORTC & ~(_BV(_CE_PIN)) | _BV(_RD_PIN);
+    // _CE low
+    PORTC &= ~(_BV(_CE_PIN));
 
     // Write data to data pins
     PORTD = (PORTD & 0b00000011) | (data & 0b11111100); // D2-D7
@@ -145,7 +123,69 @@ void writeFlashByte(uint32_t address, uint8_t data)
 
     // Set data pins back to input
     set_data_pins_input();
-    enable_data_pins_pullups();
+    disable_data_pins_pullups();
+}
+
+uint8_t readCartByte(uint32_t address)
+{
+    uint8_t data;
+    uint8_t bank;
+    uint8_t slot;
+    uint16_t offset;
+
+    // Extract bank, slot, and offset from flashAddress
+    offset = (address & 0x3FFF) | 0x8000;
+    bank = (address >> 14) & 0x07;
+    slot = (address >> 17) & 0x03;
+
+    // Set bank and slot
+    writeCartByte(0xffff, bank);
+    writeCartByte(0xfffe, slot);
+
+    // Set data pins to input
+    set_data_pins_input();
+    disable_data_pins_pullups();
+
+    // Send address
+    SPI_sendAddress(offset);
+    // _CE low, _RD low
+    PORTC &= ~(_BV(_CE_PIN) | _BV(_RD_PIN));
+
+    //    _delay_us(1);
+
+    // Read data from data pins
+    data = read_data_pins();
+
+    // _CE high, _RD high
+    PORTC |= _BV(_RD_PIN) | _BV(_CE_PIN);
+
+    return data;
+}
+
+// Program a byte to the flash at the specified address
+//
+// Programming is always performed by selecting the appropriate bank and slot
+// presented at offset 0x8000.
+void progCartByte(uint32_t address, uint8_t data)
+{
+    uint8_t bank;
+    uint8_t slot;
+    uint16_t offset;
+
+    // Extract bank, slot, and offset from flashAddress
+    offset = (address & 0x3FFF) | 0x8000;
+    bank = (address >> 14) & 0x07;
+    slot = (address >> 17) & 0x03;
+
+    // Set bank and slot
+    writeCartByte(0xffff, bank);
+    writeCartByte(0xfffe, slot);
+
+    writeCartByte(0x5555, 0xaa); // Unlock command
+    writeCartByte(0x2aaa, 0x55); // Unlock command
+    writeCartByte(0x5555, 0xa0); // Write command
+    writeCartByte(offset, data); // Write data byte
+    _delay_us(10);
 }
 
 void processBlock(int8_t *block, uint16_t length)
@@ -154,31 +194,25 @@ void processBlock(int8_t *block, uint16_t length)
     // Packets are always 128 bytes long for XMODEM
     for (int i = 0; i < length; i++)
     {
-        writeFlashByte(0x5555, 0xaa);             // Unlock command
-        writeFlashByte(0x2aaa, 0x55);             // Unlock command
-        writeFlashByte(0x5555, 0xa0);             // Write command
-        writeFlashByte(flashAddress++, block[i]); // Write data byte
+        progCartByte(flashAddress, block[i]);
         _delay_us(10);
         updateCRC32(&progCRC32, block[i]);
+        flashAddress++;
     }
 }
 void getFlashID(void)
 {
     uint8_t manufacturerID, deviceID;
 
-    // Set data pins to input
-    set_data_pins_input();
-    enable_data_pins_pullups();
-
     // Send command to read ID
-    writeFlashByte(0x5555, 0xaa); // Unlock command
-    writeFlashByte(0x2aaa, 0x55); // Unlock command
-    writeFlashByte(0x5555, 0x90); // Read ID command
+    writeCartByte(0x5555, 0xaa); // Unlock command
+    writeCartByte(0x2aaa, 0x55); // Unlock command
+    writeCartByte(0x5555, 0x90); // Read ID command
 
     // Read Manufacturer ID
-    manufacturerID = readFlashByte(0x0000);
+    manufacturerID = readCartByte(0x0000);
     // Read Device ID
-    deviceID = readFlashByte(0x0001);
+    deviceID = readCartByte(0x0001);
 
     switch (manufacturerID)
     {
@@ -208,9 +242,8 @@ void getFlashID(void)
         printf("Device      : Unknown (0x%02X)\n", deviceID);
         break;
     }
-    flashSize = ((uint32_t)512 * (uint32_t)1024); // 512KB
     // Exit ID mode
-    writeFlashByte(0x0000, 0xF0); // Reset command
+    writeCartByte(0x0000, 0xF0); // Reset command
 }
 
 int main(void)
@@ -218,14 +251,14 @@ int main(void)
     uint8_t input;
 
     // Configure control pins as output and set them high
-    DDRC = (1 << RCLK_PIN) | (1 << _CE_PIN) | (1 << _RD_PIN) | (1 << _WR_PIN); // Set RCLK_PIN, _CE_PIN, _RD_PIN, _WR_PIN as output
-    PORTC = (1 << _CE_PIN) | (1 << _RD_PIN) | (1 << _WR_PIN);                  // Set _CE_PIN, _RD_PIN, _WR_PIN high
+    DDRC = _BV(RCLK_PIN) | _BV(_CE_PIN) | _BV(_RD_PIN) | _BV(_WR_PIN); // Set RCLK_PIN, _CE_PIN, _RD_PIN, _WR_PIN as output
+    PORTC = _BV(_CE_PIN) | _BV(_RD_PIN) | _BV(_WR_PIN);                // Set _CE_PIN, _RD_PIN, _WR_PIN high
 
     initUART();
     initTimer();
     SPI_initMaster();
     set_data_pins_input();
-    enable_data_pins_pullups();
+    disable_data_pins_pullups();
 
     for (;;)
     {
@@ -242,7 +275,7 @@ int main(void)
         printf("3 ........ Program Flash (XMODEM download)\n");
         printf("4 ........ Verify Flash\n");
         printf("5 ........ Read Byte\n");
-        printf("6 ........ Write Byte\n");
+        printf("6 ........ Program Byte\n");
         printf("Select an option: ");
 
         input = getchar();
@@ -252,13 +285,13 @@ int main(void)
         case '1':
             printf("\nErasing flash...\n");
             // Erase Flash
-            writeFlashByte(0x5555, 0xaa); // Unlock command
-            writeFlashByte(0x2aaa, 0x55); // Unlock command
-            writeFlashByte(0x5555, 0x80); // Erase command
-            writeFlashByte(0x5555, 0xaa); // Unlock command
-            writeFlashByte(0x2aaa, 0x55); // Unlock command
-            writeFlashByte(0x5555, 0x10); // Chip erase command
-            _delay_ms(100);               // Wait for erase to complete
+            writeCartByte(0x5555, 0xaa); // Unlock command
+            writeCartByte(0x2aaa, 0x55); // Unlock command
+            writeCartByte(0x5555, 0x80); // Erase command
+            writeCartByte(0x5555, 0xaa); // Unlock command
+            writeCartByte(0x2aaa, 0x55); // Unlock command
+            writeCartByte(0x5555, 0x10); // Chip erase command
+            _delay_ms(100);              // Wait for erase to complete
             printf("\nErase complete.\n");
             printf("Press any key to continue...\n");
             getchar();
@@ -268,9 +301,9 @@ int main(void)
             printf("\nPerforming blank check...\n");
             for (flashAddress = 0; flashAddress < flashSize; flashAddress++)
             {
-                if (readFlashByte(flashAddress) != 0xFF)
+                if (readCartByte(flashAddress) != 0xFF)
                 {
-                    printf("\nFlash is NOT blank. First non-blank byte at address 0x%06lX: 0x%02X\n", flashAddress, readFlashByte(flashAddress));
+                    printf("\nFlash is NOT blank. First non-blank byte at address 0x%06lX: 0x%02X\n", flashAddress, readCartByte(flashAddress));
                     break;
                 }
             }
@@ -297,7 +330,7 @@ int main(void)
             flashCRC32 = 0xFFFFFFFF;
             for (flashAddress = 0; flashAddress < flashSize; flashAddress++)
             {
-                uint8_t data = readFlashByte(flashAddress);
+                uint8_t data = readCartByte(flashAddress);
                 updateCRC32(&flashCRC32, data);
             }
             if (flashCRC32 == progCRC32)
@@ -312,31 +345,31 @@ int main(void)
             getchar();
             break;
         case '5':
-            {
-                uint32_t address;
-                printf("\nEnter address to read (hex): 0x");
-                scanf("%lx", &address);
-                uint8_t data = readFlashByte(address);
-                printf("Data at address 0x%06lX: 0x%02X\n", address, data);
-                printf("Press any key to continue...\n");
-                getchar(); // Consume newline
-                getchar(); // Wait for key
-            }
-            break;
+        {
+            uint32_t address;
+            printf("\nEnter address to read (hex): 0x");
+            scanf("%lx", &address);
+            uint8_t data = readCartByte(address);
+            printf("Data at address 0x%06lX: 0x%02X\n", address, data);
+            printf("Press any key to continue...\n");
+            getchar(); // Consume newline
+            getchar(); // Wait for key
+        }
+        break;
         case '6':
-            {
-                uint32_t address;
-                uint8_t data;
-                printf("\nEnter address to write (hex): 0x");
-                scanf("%lx", &address);
-                printf("Enter data to write (hex): 0x");
-                scanf("%hhx", &data);
-                writeFlashByte(address, data);
-                printf("Press any key to continue...\n");
-                getchar(); // Consume newline
-                getchar(); // Wait for key
-            }
-            break;
+        {
+            uint32_t address;
+            uint8_t data;
+            printf("\nEnter address to write (hex): 0x");
+            scanf("%lx", &address);
+            printf("Enter data to write (hex): 0x");
+            scanf("%hhx", &data);
+            progCartByte(address, data);
+            printf("Press any key to continue...\n");
+            getchar(); // Consume newline
+            getchar(); // Wait for key
+        }
+        break;
         default:
             break;
         }
