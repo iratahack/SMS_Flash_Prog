@@ -272,5 +272,6 @@ extern uint32_t XMODEM_ReceiveFile(int8_t *pBuffer, void (*processBlock)(int8_t 
             break;
         }
     }
+    c = XMODEM_GetChar();
     return (size);
 }

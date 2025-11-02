@@ -29,20 +29,20 @@ static uint32_t progCRC32;
 void SPI_initMaster(void)
 {
     // Set MOSI (PB3), SCK (PB5), SS (PB2) as output
-    DDRB |= (1 << PB3) | (1 << PB5) | (1 << PB2);
+    DDRB |= (_BV(PB3) | _BV(PB5) | _BV(PB2));
     // Set MISO (PB4) as input
-    DDRB &= ~(1 << PB4);
+    DDRB &= ~(_BV(PB4));
 
     // Enable SPI, Set as Master, Set clock rate fosc/4
-    SPCR = (1 << SPE) | (1 << MSTR);
+    SPCR = _BV(SPE) | _BV(MSTR);
     // Double speed for fosc/2
-    SPSR |= (1 << SPI2X);
+    SPSR = _BV(SPI2X);
 }
 
 void SPI_send(uint8_t data)
 {
     SPDR = data; // Load data into the buffer
-    while (!(SPSR & (1 << SPIF)))
+    while (!(SPSR & _BV(SPIF)))
         ; // Wait until transmission complete
 }
 
@@ -87,8 +87,8 @@ uint8_t read_data_pins(void)
 // Toggle the RCLK input on the 74hc595 to latch data
 void toggleRCLK(void)
 {
-    PORTC |= (1 << RCLK_PIN);  // Set RCLK high
-    PORTC &= ~(1 << RCLK_PIN); // Set RCLK low
+    PORTC |= _BV(RCLK_PIN);  // Set RCLK high
+    PORTC &= ~_BV(RCLK_PIN); // Set RCLK low
 }
 
 // Send a 16-bit address via SPI to the shift registers
@@ -195,7 +195,6 @@ void processBlock(int8_t *block, uint16_t length)
     for (int i = 0; i < length; i++)
     {
         progCartByte(flashAddress, block[i]);
-        _delay_us(10);
         updateCRC32(&progCRC32, block[i]);
         flashAddress++;
     }
@@ -246,6 +245,48 @@ void getFlashID(void)
     writeCartByte(0x0000, 0xF0); // Reset command
 }
 
+void eraseFlash(void)
+{
+    printf("\nErasing flash...\n");
+    writeCartByte(0x5555, 0xaa); // Unlock command
+    writeCartByte(0x2aaa, 0x55); // Unlock command
+    writeCartByte(0x5555, 0x80); // Erase command
+    writeCartByte(0x5555, 0xaa); // Unlock command
+    writeCartByte(0x2aaa, 0x55); // Unlock command
+    writeCartByte(0x5555, 0x10); // Chip erase command
+    _delay_ms(100);              // Wait for erase to complete
+    printf("\nErase complete.\n");
+}
+
+void xmodemProgramFlash(void)
+{
+    printf("\nStarting XMODEM file receive for programming...\n");
+    // Program Flash
+    flashAddress = 0;
+    progCRC32 = 0xFFFFFFFF;
+    XMODEM_ReceiveFile(buffer, processBlock);
+    printf("\nProgramming complete. Programmed CRC32: 0x%08lX\n", progCRC32);
+}
+
+void verifyFlash(void)
+{
+    printf("\nVerifying flash...\n");
+    flashCRC32 = 0xFFFFFFFF;
+    for (flashAddress = 0; flashAddress < flashSize; flashAddress++)
+    {
+        uint8_t data = readCartByte(flashAddress);
+        updateCRC32(&flashCRC32, data);
+    }
+    if (flashCRC32 == progCRC32)
+    {
+        printf("\nFlash verification successful. CRC32 matches: 0x%08lX\n", flashCRC32);
+    }
+    else
+    {
+        printf("\nFlash verification failed. Expected CRC32: 0x%08lX, Read CRC32: 0x%08lX\n", progCRC32, flashCRC32);
+    }
+}
+
 int main(void)
 {
     uint8_t input;
@@ -276,6 +317,7 @@ int main(void)
         printf("4 ........ Verify Flash\n");
         printf("5 ........ Read Byte\n");
         printf("6 ........ Program Byte\n");
+        printf("0 ........ Erase, Program, and Verify Flash (XMODEM download)\n");
         printf("Select an option: ");
 
         input = getchar();
@@ -283,16 +325,7 @@ int main(void)
         switch (input)
         {
         case '1':
-            printf("\nErasing flash...\n");
-            // Erase Flash
-            writeCartByte(0x5555, 0xaa); // Unlock command
-            writeCartByte(0x2aaa, 0x55); // Unlock command
-            writeCartByte(0x5555, 0x80); // Erase command
-            writeCartByte(0x5555, 0xaa); // Unlock command
-            writeCartByte(0x2aaa, 0x55); // Unlock command
-            writeCartByte(0x5555, 0x10); // Chip erase command
-            _delay_ms(100);              // Wait for erase to complete
-            printf("\nErase complete.\n");
+            eraseFlash();
             printf("Press any key to continue...\n");
             getchar();
             break;
@@ -315,32 +348,13 @@ int main(void)
             getchar();
             break;
         case '3':
-            printf("\nStarting XMODEM file receive for programming...\n");
-            // Program Flash
-            flashAddress = 0;
-            progCRC32 = 0xFFFFFFFF;
-            XMODEM_ReceiveFile(buffer, processBlock);
-            printf("\nProgramming complete. Programmed CRC32: 0x%08lX\n", progCRC32);
+            xmodemProgramFlash();
             printf("Press any key to continue...\n");
             getchar();
             break;
         case '4':
             // Verify Flash
-            printf("\nVerifying flash...\n");
-            flashCRC32 = 0xFFFFFFFF;
-            for (flashAddress = 0; flashAddress < flashSize; flashAddress++)
-            {
-                uint8_t data = readCartByte(flashAddress);
-                updateCRC32(&flashCRC32, data);
-            }
-            if (flashCRC32 == progCRC32)
-            {
-                printf("\nFlash verification successful. CRC32 matches: 0x%08lX\n", flashCRC32);
-            }
-            else
-            {
-                printf("\nFlash verification failed. Expected CRC32: 0x%08lX, Read CRC32: 0x%08lX\n", progCRC32, flashCRC32);
-            }
+            verifyFlash();
             printf("Press any key to continue...\n");
             getchar();
             break;
@@ -370,6 +384,13 @@ int main(void)
             getchar(); // Wait for key
         }
         break;
+        case '0':
+            eraseFlash();
+            xmodemProgramFlash();
+            verifyFlash();
+            printf("Press any key to continue...\n");
+            getchar();
+            break;
         default:
             break;
         }
