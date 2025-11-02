@@ -151,9 +151,9 @@ uint8_t readCartByte(uint32_t address)
     // _CE low, _RD low
     PORTC &= ~(_BV(_CE_PIN) | _BV(_RD_PIN));
 
-    //    _delay_us(1);
-
     // Read data from data pins
+    // Dummy read to allow data to stabilize
+    data = read_data_pins();
     data = read_data_pins();
 
     // _CE high, _RD high
