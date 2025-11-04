@@ -187,6 +187,91 @@ static int8_t XMODEM_GetPacket(int8_t *pData, uint8_t ucSno, uint16_t size)
     return (0);
 }
 
+uint32_t XMODEM_SendFile(int8_t *pBuffer, uint32_t length, void (*processBlock)(int8_t *, uint32_t, uint16_t))
+{
+    uint8_t seqNo = 1;
+    uint32_t bytesSent = 0;
+    uint8_t c;
+    uint16_t crc;
+    uint16_t timeout;
+
+    // Wait for receiver to request transfer
+    while (1)
+    {
+        c = XMODEM_GetChar();
+        if (c == 'C')
+            break;
+    }
+
+    // Begin sending data
+    while (bytesSent < length)
+    {
+        if (processBlock != NULL)
+            processBlock(pBuffer, bytesSent, 1024);
+
+        XMODEM_PutChar(XMDM_STX); // Start of 1K block
+
+        // Send sequence number and its complement
+        XMODEM_PutChar(seqNo);
+        XMODEM_PutChar((uint8_t) (~seqNo));
+
+        // Send data bytes
+        crc = 0;
+        for (uint16_t i = 0; i < 1024; i++)
+        {
+            XMODEM_PutChar(pBuffer[i]);
+            crc = XMODEM_GetCrc(pBuffer[i], crc);
+        }
+
+        // Send CRC
+        XMODEM_PutChar((crc >> 8) & 0xFF);
+        XMODEM_PutChar(crc & 0xFF);
+
+        // Wait for ACK/NAK
+        timeout = ticks + 300; // 3 seconds timeout
+        while ((UART_IsRxReady() == 0) && (ticks != timeout))
+            ;
+
+        if (UART_IsRxReady())
+        {
+            c = XMODEM_GetChar();
+            if (c == XMDM_ACK)
+            {
+                // Packet acknowledged
+                bytesSent += 1024;
+                seqNo++;
+            }
+            else if (c == XMDM_NAK)
+            {
+                // Retransmit the same packet
+                continue;
+            }
+            else
+            {
+                // Unexpected response, abort
+                printf("Unexpected response: 0x%02X\n", c);
+                break;
+            }
+        }
+        else
+        {
+            // Timeout waiting for response, abort
+            printf("Timeout waiting for ACK/NAK\n");
+            break;
+        }
+    }
+    XMODEM_PutChar(XMDM_EOT);
+    c = XMODEM_GetChar();
+    if (c != XMDM_ACK)
+    {
+        printf("No ACK for EOT, transfer may be incomplete\n");
+    }
+
+    c = XMODEM_GetChar();
+
+    return bytesSent;
+}
+
 /*----------------------------------------------------------------------------
  *        Exported functions
  *----------------------------------------------------------------------------*/

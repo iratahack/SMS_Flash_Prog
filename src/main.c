@@ -12,6 +12,7 @@
 #define _WR_PIN PC3
 
 extern uint32_t XMODEM_ReceiveFile(int8_t *pBuffer, void (*processBlock)(int8_t *, uint16_t));
+extern uint32_t XMODEM_SendFile(int8_t *pBuffer, uint32_t length, void (*processBlock)(int8_t *, uint32_t, uint16_t));
 extern void initUART(void);
 extern void initTimer(void);
 extern void updateCRC32(uint32_t *crc, const uint8_t data);
@@ -199,6 +200,7 @@ void processBlock(int8_t *block, uint16_t length)
         flashAddress++;
     }
 }
+
 void getFlashID(void)
 {
     uint8_t manufacturerID, deviceID;
@@ -268,6 +270,27 @@ void xmodemProgramFlash(void)
     printf("\nProgramming complete. Programmed CRC32: 0x%08lX\n", progCRC32);
 }
 
+void processSendBlock(int8_t *block, uint32_t start, uint16_t length)
+{
+    // process the received block (e.g., write to flash)
+    // Packets are always 128 bytes long for XMODEM
+    for (uint16_t i = 0; i < length; i++)
+    {
+        block[i] = readCartByte(start + i);
+        updateCRC32(&flashCRC32, block[i]);
+    }
+}
+
+void xmodemReadFlash(void)
+{
+    uint32_t bytesSent;
+
+    flashCRC32 = 0xFFFFFFFF;
+    printf("\nStarting XMODEM file send for flash read...\n");
+    bytesSent = XMODEM_SendFile(buffer, flashSize, processSendBlock);
+    printf("Read complete (%lu bytes sent). CRC32: 0x%08lX\n", bytesSent, flashCRC32);
+}
+
 void verifyFlash(void)
 {
     printf("\nVerifying flash...\n");
@@ -317,6 +340,7 @@ int main(void)
         printf("4 ........ Verify Flash\n");
         printf("5 ........ Read Byte\n");
         printf("6 ........ Program Byte\n");
+        printf("7 ........ Read Flash (XMODEM upload)\n");
         printf("0 ........ Erase, Program, and Verify Flash (XMODEM download)\n");
         printf("Select an option: ");
 
@@ -384,6 +408,12 @@ int main(void)
             getchar(); // Wait for key
         }
         break;
+        case '7':
+            // Read Flash via XMODEM
+            xmodemReadFlash();
+            printf("Press any key to continue...\n");
+            getchar();
+            break;
         case '0':
             eraseFlash();
             xmodemProgramFlash();
