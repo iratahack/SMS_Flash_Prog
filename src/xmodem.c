@@ -42,6 +42,7 @@
  *        Headers
  *----------------------------------------------------------------------------*/
 #include <stdio.h>
+#include <stdint.h>
 #include <avr/io.h>
 
 extern volatile uint16_t ticks;
@@ -102,12 +103,13 @@ static uint8_t XMODEM_GetChar(void)
  * \param uwCrc Calculated CRC value.
  * \return Calculated CRC value.
  */
-static uint16_t XMODEM_GetCrc(int8_t ucChar, uint16_t uwCrc)
+static uint16_t XMODEM_GetCrc(uint8_t ucChar, uint16_t uwCrc)
 {
 
     uint16_t uwCmpt;
 
-    uwCrc = uwCrc ^ (int32_t)ucChar << 8;
+    /* Treat input byte as unsigned to avoid sign-extension issues */
+    uwCrc = uwCrc ^ ((uint16_t)ucChar << 8);
 
     for (uwCmpt = 0; uwCmpt < 8; uwCmpt++)
     {
@@ -134,7 +136,8 @@ static uint16_t XMODEM_Getbytes(int8_t *pData, uint32_t length)
     while (length--)
     {
         *pData = XMODEM_GetChar();
-        crc = XMODEM_GetCrc(*pData, crc);
+        /* Cast to uint8_t when computing CRC to avoid sign issues */
+        crc = XMODEM_GetCrc((uint8_t)*pData, crc);
         pData++;
     }
 
@@ -158,7 +161,9 @@ static int8_t XMODEM_GetPacket(int8_t *pData, uint8_t ucSno, uint16_t size)
     uint8_t cpSeq[2];
     uint16_t uwCrc, uwXcrc;
 
-    XMODEM_Getbytes((int8_t *)cpSeq, 2);
+    /* Read sequence bytes directly (don't include them in data CRC) */
+    cpSeq[0] = XMODEM_GetChar();
+    cpSeq[1] = XMODEM_GetChar();
 
     uwXcrc = XMODEM_Getbytes(pData, size);
 
@@ -172,12 +177,13 @@ static int8_t XMODEM_GetPacket(int8_t *pData, uint8_t ucSno, uint16_t size)
     }
     else if ((cpSeq[0] != ucSno) || (cpSeq[1] != (uint8_t)((~(uint32_t)ucSno) & 0xff)))
     {
-        // Checksum didn't match check if retransmit of previous good packet
-        if ((cpSeq[0] != lastGoodSeq) || (cpSeq[1] != (uint8_t)((~(uint32_t)lastGoodSeq) & 0xff)))
+        /* Sequence number mismatch. If the packet matches the previous
+           good packet, caller should treat it as a retransmit (code 3).
+           Otherwise it's a sequence error (code 2). */
+        if ((cpSeq[0] == lastGoodSeq) && (cpSeq[1] == (uint8_t)((~(uint32_t)lastGoodSeq) & 0xff)))
         {
             return (3);
         }
-
         return (2);
     }
 
@@ -203,31 +209,41 @@ uint32_t XMODEM_SendFile(int8_t *pBuffer, uint32_t length, void (*processBlock)(
             break;
     }
 
-    // Begin sending data
+    /* Begin sending data in 1K blocks. Handle the final partial block by
+       asking the caller to fill only the remaining bytes and padding the
+       rest with 0x1A (SUB) per convention. */
     while (bytesSent < length)
     {
+        uint16_t chunkSize = (length - bytesSent) >= 1024 ? 1024 : (uint16_t)(length - bytesSent);
+
         if (processBlock != NULL)
-            processBlock(pBuffer, bytesSent, 1024);
+            processBlock(pBuffer, bytesSent, chunkSize);
 
         XMODEM_PutChar(XMDM_STX); // Start of 1K block
 
         // Send sequence number and its complement
         XMODEM_PutChar(seqNo);
-        XMODEM_PutChar((uint8_t) (~seqNo));
+        XMODEM_PutChar((uint8_t)(~seqNo));
 
-        // Send data bytes
+        /* Send data bytes (pad with 0x1A for the remainder of the block) */
         crc = 0;
         for (uint16_t i = 0; i < 1024; i++)
         {
-            XMODEM_PutChar(pBuffer[i]);
-            crc = XMODEM_GetCrc(pBuffer[i], crc);
+            uint8_t b;
+            if (i < chunkSize)
+                b = (uint8_t)pBuffer[i];
+            else
+                b = 0x1A; /* PAD */
+
+            XMODEM_PutChar(b);
+            crc = XMODEM_GetCrc(b, crc);
         }
 
-        // Send CRC
+        /* Send CRC */
         XMODEM_PutChar((crc >> 8) & 0xFF);
         XMODEM_PutChar(crc & 0xFF);
 
-        // Wait for ACK/NAK
+        /* Wait for ACK/NAK */
         timeout = ticks + 300; // 3 seconds timeout
         while ((UART_IsRxReady() == 0) && (ticks != timeout))
             ;
@@ -237,34 +253,41 @@ uint32_t XMODEM_SendFile(int8_t *pBuffer, uint32_t length, void (*processBlock)(
             c = XMODEM_GetChar();
             if (c == XMDM_ACK)
             {
-                // Packet acknowledged
-                bytesSent += 1024;
+                /* Packet acknowledged */
+                bytesSent += chunkSize;
                 seqNo++;
             }
             else if (c == XMDM_NAK)
             {
-                // Retransmit the same packet
+                /* Retransmit the same packet */
                 continue;
             }
             else
             {
-                // Unexpected response, abort
+                /* Unexpected response, abort */
                 printf("Unexpected response: 0x%02X\n", c);
                 break;
             }
         }
         else
         {
-            // Timeout waiting for response, abort
+            /* Timeout waiting for response, abort */
             printf("Timeout waiting for ACK/NAK\n");
             break;
         }
     }
+
+    /* Send EOT and wait for ACK (with timeout). */
     XMODEM_PutChar(XMDM_EOT);
-    c = XMODEM_GetChar();
-    if (c != XMDM_ACK)
+    timeout = ticks + 300;
+    while ((UART_IsRxReady() == 0) && (ticks != timeout))
+        ;
+
+    if (UART_IsRxReady())
     {
-        printf("No ACK for EOT, transfer may be incomplete\n");
+        c = XMODEM_GetChar();
+        if (c != XMDM_ACK)
+            printf("No ACK for EOT, transfer may be incomplete\n");
     }
 
     c = XMODEM_GetChar();
