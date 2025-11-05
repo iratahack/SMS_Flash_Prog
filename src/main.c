@@ -293,11 +293,11 @@ static void checksumFlash(void)
     }
     if (flashCRC32 == progCRC32)
     {
-        printf("\nFlash verification successful. CRC32 matches: 0x%08lX\n", flashCRC32);
+        printf("\n\033[32mFlash verification successful. CRC32 matches: 0x%08lX\033[0m\n", flashCRC32);
     }
     else
     {
-        printf("\nFlash verification failed. Expected CRC32: 0x%08lX, Read CRC32: 0x%08lX\n", progCRC32, flashCRC32);
+        printf("\n\033[31mFlash verification failed. Expected CRC32: 0x%08lX, Read CRC32: 0x%08lX\033[0m\n", progCRC32, flashCRC32);
     }
 }
 
