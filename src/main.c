@@ -12,8 +12,8 @@
 #define _RD_PIN PC2
 #define _WR_PIN PC3
 
-extern uint32_t XMODEM_ReceiveFile(int8_t *pBuffer, void (*processBlock)(int8_t *, uint16_t));
-extern uint32_t XMODEM_SendFile(int8_t *pBuffer, uint32_t length, void (*processBlock)(int8_t *, uint32_t, uint16_t));
+extern uint32_t XMODEM_ReceiveFile(uint8_t *pBuffer, void (*processBlock)(uint8_t *, uint16_t));
+extern uint32_t XMODEM_SendFile(uint8_t *pBuffer, uint32_t length, void (*processBlock)(uint8_t *, uint32_t, uint16_t));
 extern void initUART(void);
 extern void initTimer(void);
 extern void updateCRC32(uint32_t *crc, const uint8_t data);
@@ -83,8 +83,8 @@ static void SPI_sendAddress(uint16_t address)
 {
     SPI_send((address >> 8) & 0xFF); // Send high byte
     SPI_send(address & 0xFF);        // Send low byte
-    PORTC |= _BV(RCLK_PIN);  // Set RCLK high
-    PORTC &= ~_BV(RCLK_PIN); // Set RCLK low
+    PORTC |= _BV(RCLK_PIN);          // Set RCLK high
+    PORTC &= ~_BV(RCLK_PIN);         // Set RCLK low
 }
 
 static void writeCartByte(uint32_t address, uint8_t data)
@@ -181,7 +181,7 @@ static void progCartByte(uint32_t address, uint8_t data)
     _delay_us(10);
 }
 
-static void processBlock(int8_t *block, uint16_t length)
+static void processBlock(uint8_t *block, uint16_t length)
 {
     // process the received block (e.g., write to flash)
     // Packets are always 128 bytes long for XMODEM
@@ -263,14 +263,14 @@ static void xmodemProgramFlash(void)
     printf("\nProgramming complete. Programmed CRC32: 0x%08lX\n", progCRC32);
 }
 
-static void processSendBlock(int8_t *block, uint32_t start, uint16_t length)
+static void processSendBlock(uint8_t *block, uint32_t start, uint16_t length)
 {
     // process the received block (e.g., write to flash)
-    // Packets are always 128 bytes long for XMODEM
-    for (uint16_t i = 0; i < length; i++)
+    while (length--)
     {
-        block[i] = readCartByte(start + i);
-        updateCRC32(&flashCRC32, block[i]);
+        *block = readCartByte(start++);
+        updateCRC32(&flashCRC32, *block);
+        block++;
     }
 }
 
@@ -288,9 +288,9 @@ static void checksumFlash(void)
 {
     printf("\nChecksuming flash...\n");
     flashCRC32 = 0xFFFFFFFF;
-    for (flashAddress = 0; flashAddress < flashSize; flashAddress++)
+    for (uint32_t addr = 0; addr < flashSize; addr++)
     {
-        uint8_t data = readCartByte(flashAddress);
+        uint8_t data = readCartByte(addr);
         updateCRC32(&flashCRC32, data);
     }
     if (flashCRC32 == progCRC32)
@@ -346,23 +346,26 @@ int main(void)
             getchar();
             break;
         case '2':
+        {
+            uint32_t addr;
             // Blank Check Flash
             printf("\nPerforming blank check...\n");
-            for (flashAddress = 0; flashAddress < flashSize; flashAddress++)
+            for (addr = 0; addr < flashSize; addr++)
             {
-                if (readCartByte(flashAddress) != 0xFF)
+                if (readCartByte(addr) != 0xFF)
                 {
-                    printf("\nFlash is NOT blank. First non-blank byte at address 0x%06lX: 0x%02X\n", flashAddress, readCartByte(flashAddress));
+                    printf("\nFlash is NOT blank. First non-blank byte at address 0x%06lX: 0x%02X\n", addr, readCartByte(addr));
                     break;
                 }
             }
-            if (flashAddress == flashSize)
+            if (addr == flashSize)
             {
                 printf("\nBlank check successful.\n");
             }
             printf("Press any key to continue...\n");
             getchar();
-            break;
+        }
+        break;
         case '3':
             xmodemProgramFlash();
             printf("Press any key to continue...\n");

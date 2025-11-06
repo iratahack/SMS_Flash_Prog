@@ -201,7 +201,7 @@ static int8_t XMODEM_GetPacket(int8_t *pData, uint8_t ucSno, uint16_t size)
     return (0);
 }
 
-uint32_t XMODEM_SendFile(int8_t *pBuffer, uint32_t length, void (*processBlock)(int8_t *, uint32_t, uint16_t))
+uint32_t XMODEM_SendFile(uint8_t *pBuffer, uint32_t length, void (*processBlock)(uint8_t *, uint32_t, uint16_t))
 {
     uint8_t seqNo = 1;
     uint32_t bytesSent = 0;
@@ -312,7 +312,7 @@ resend:
  * \param pBuffer  Pointer to received buffers
  * \return 0 for sucess and other value for xmodem error
  */
-extern uint32_t XMODEM_ReceiveFile(int8_t *pBuffer, void (*processBlock)(int8_t *, uint16_t))
+uint32_t XMODEM_ReceiveFile(uint8_t *pBuffer, void (*processBlock)(uint8_t *, uint16_t))
 {
     uint16_t timeout;
     uint8_t c;
