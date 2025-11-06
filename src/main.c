@@ -48,6 +48,14 @@ static void SPI_send(uint8_t data)
         ; // Wait until transmission complete
 }
 
+static void disable_data_pins_pullups(void)
+{
+    // D2-D7: PD2-PD7
+    PORTD &= ~(0b11111100); // Disable pull-ups on PD2-PD7
+    // D8-D9: PB0-PB1
+    PORTB &= ~(0b00000011); // Disable pull-ups on PB0, PB1
+}
+
 static void set_data_pins_output(void)
 {
     // D2-D7: PD2-PD7 (6 bits)
@@ -62,14 +70,7 @@ static void set_data_pins_input(void)
     DDRD &= ~(0b11111100); // Set PD2-PD7 as input
     // D8-D9: PB0-PB1
     DDRB &= ~(0b00000011); // Set PB0, PB1 as input
-}
-
-static void disable_data_pins_pullups(void)
-{
-    // D2-D7: PD2-PD7
-    PORTD &= ~(0b11111100); // Disable pull-ups on PD2-PD7
-    // D8-D9: PB0-PB1
-    PORTB &= ~(0b00000011); // Disable pull-ups on PB0, PB1
+    disable_data_pins_pullups();
 }
 
 // Read the 8-bit data from the data pins D2-D9
@@ -78,35 +79,29 @@ static uint8_t read_data_pins(void)
     return (PIND & 0b11111100) | (PINB & 0b00000011);
 }
 
-// Toggle the RCLK input on the 74hc595 to latch data
-static void toggleRCLK(void)
-{
-    PORTC |= _BV(RCLK_PIN);  // Set RCLK high
-    PORTC &= ~_BV(RCLK_PIN); // Set RCLK low
-}
-
 // Send a 16-bit address via SPI to the shift registers
 static void SPI_sendAddress(uint16_t address)
 {
     SPI_send((address >> 8) & 0xFF); // Send high byte
     SPI_send(address & 0xFF);        // Send low byte
-    toggleRCLK();
+    PORTC |= _BV(RCLK_PIN);  // Set RCLK high
+    PORTC &= ~_BV(RCLK_PIN); // Set RCLK low
 }
 
 static void writeCartByte(uint32_t address, uint8_t data)
 {
     // Set data pins as output
-    disable_data_pins_pullups();
     set_data_pins_output();
 
     // Send address
     SPI_sendAddress(address);
-    // _CE low
-    PORTC &= ~(_BV(_CE_PIN));
 
     // Write data to data pins
     PORTD = (PORTD & 0b00000011) | (data & 0b11111100); // D2-D7
     PORTB = (PORTB & 0b11111100) | (data & 0b00000011); // D8-D9
+
+    // _CE low
+    PORTC &= ~(_BV(_CE_PIN));
 
     // Pulse WR to write data, min delay is 40nS
     PORTC &= ~(_BV(_WR_PIN));
@@ -114,10 +109,6 @@ static void writeCartByte(uint32_t address, uint8_t data)
 
     // _CE high
     PORTC |= _BV(_CE_PIN);
-
-    // Set data pins back to input
-    set_data_pins_input();
-    disable_data_pins_pullups();
 }
 
 // Helper: select bank/slot derived from a full flash address and return offset
@@ -142,7 +133,6 @@ static uint8_t readCartByte(uint32_t address)
 
     // Set data pins to input
     set_data_pins_input();
-    disable_data_pins_pullups();
 
     // Send address
     SPI_sendAddress(offset);
@@ -313,7 +303,6 @@ int main(void)
     initTimer();
     SPI_initMaster();
     set_data_pins_input();
-    disable_data_pins_pullups();
 
     for (;;)
     {
