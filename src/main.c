@@ -73,11 +73,10 @@ static void set_data_pins_input(void)
     disable_data_pins_pullups();
 }
 
-// Read the 8-bit data from the data pins D2-D9
-static uint8_t read_data_pins(void)
-{
-    return (PIND & 0b11111100) | (PINB & 0b00000011);
-}
+/* Inline macro to read D2-D9 (PD2-PD7 and PB0-PB1). Keep the same
+   name so existing call sites do not need to change. Wrap operands
+   in parentheses to avoid surprises when expanded. */
+#define read_data_pins() ((uint8_t)(((PIND) & 0b11111100) | ((PINB) & 0b00000011)))
 
 // Send a 16-bit address via SPI to the shift registers
 static void SPI_sendAddress(uint16_t address)
@@ -114,13 +113,26 @@ static void writeCartByte(uint32_t address, uint8_t data)
 // Helper: select bank/slot derived from a full flash address and return offset
 static void selectBankSlot(uint32_t address, uint16_t *offset)
 {
+    /* Keep track of the currently-selected bank/slot so we avoid
+       writing the same values repeatedly (saves SPI / write cycles).
+       Initialize to 0xFF so the first call always programs them. */
+    static uint8_t currentBank = 0xFF;
+    static uint8_t currentSlot = 0xFF;
+    uint8_t newBank = (address >> 14) & 0x07;
+    uint8_t newSlot = (address >> 17) & 0x03;
     *offset = (address & 0x3FFF) | 0x8000;
-    uint8_t bank = (address >> 14) & 0x07;
-    uint8_t slot = (address >> 17) & 0x03;
 
-    // Set bank and slot
-    writeCartByte(0xffff, bank);
-    writeCartByte(0xfffe, slot);
+    /* Only update bank/slot if they changed since last selection. */
+    if (newBank != currentBank)
+    {
+        writeCartByte(0xffff, newBank);
+        currentBank = newBank;
+    }
+    if (newSlot != currentSlot)
+    {
+        writeCartByte(0xfffe, newSlot);
+        currentSlot = newSlot;
+    }
 }
 
 static uint8_t readCartByte(uint32_t address)
