@@ -152,14 +152,199 @@ static uint8_t readCartByte(uint32_t address)
     PORTC &= ~(_BV(_CE_PIN) | _BV(_RD_PIN));
 
     // Read data from data pins
-    // Dummy read to allow data to stabilize
-    data = read_data_pins();
+    // Add nop's to allow data to stabilize
+    asm("nop\n"
+        "nop\n");
     data = read_data_pins();
 
     // _CE high, _RD high
     PORTC |= _BV(_RD_PIN) | _BV(_CE_PIN);
 
     return data;
+}
+
+// Helper function to read a 16-bit pointer from header (file scope)
+static uint16_t readHeaderPointer(uint16_t addr)
+{
+    return readCartByte(addr) | (readCartByte(addr + 1) << 8);
+}
+
+// Helper function to print a null-terminated string from ROM (file scope)
+static void printROMString(uint16_t strPtr)
+{
+    if (strPtr == 0 || strPtr == 0xFFFF)
+    {
+        printf("(None)");
+        return;
+    }
+
+    for (uint16_t i = strPtr;; i++)
+    {
+        uint8_t c = readCartByte(i);
+        if (c == 0)
+            break;
+        if (c < 32)
+            continue; // Skip control characters
+        printf("%c", c);
+    }
+}
+
+static uint16_t findSDSCHeader(void)
+{
+    // Search for SDSC signature in ROM
+    // Common locations are 0x7FE0 and near the start of ROM
+    const uint16_t searchLocations[] = {0x7FE0, 0x0000};
+    const uint16_t searchRanges[] = {0x10, 0x100}; // How far to search from each location
+
+    for (uint8_t loc = 0; loc < sizeof(searchLocations) / sizeof(searchLocations[0]); loc++)
+    {
+        uint16_t addr = searchLocations[loc];
+        for (uint16_t i = 0; i < searchRanges[loc]; i++)
+        {
+            if (readCartByte(addr + i) == 'S' &&
+                readCartByte(addr + i + 1) == 'D' &&
+                readCartByte(addr + i + 2) == 'S' &&
+                readCartByte(addr + i + 3) == 'C')
+            {
+                return addr + i;
+            }
+        }
+    }
+    return 0; // Return 0 if not found
+}
+
+static void displaySDSCHeader(void)
+{
+    uint16_t signature = findSDSCHeader();
+    if (!signature)
+    {
+        return; // No SDSC header found
+    }
+
+    uint16_t headerAddr = signature + 4; // Skip "SDSC" signature
+    printf("\n\nSDSC Header Information:\n");
+    printf("Version: %d.%d\n", readCartByte(headerAddr + 0), readCartByte(headerAddr + 1));
+
+    // Display release date from BCD format (DD MM YY YY)
+    uint8_t day = readCartByte(headerAddr + 2);
+    uint8_t month = readCartByte(headerAddr + 3);
+    uint8_t yearLow = readCartByte(headerAddr + 4);
+    uint8_t yearHigh = readCartByte(headerAddr + 5);
+
+    // Convert from BCD
+    day = ((day >> 4) & 0x0F) * 10 + (day & 0x0F);
+    month = ((month >> 4) & 0x0F) * 10 + (month & 0x0F);
+    uint16_t year = (((yearHigh >> 4) & 0x0F) * 1000) +
+                    ((yearHigh & 0x0F) * 100) +
+                    (((yearLow >> 4) & 0x0F) * 10) +
+                    (yearLow & 0x0F);
+
+    printf("Release Date: %04u.%02u.%02u\n", year, month, day);
+
+    // Read all string pointers (they're stored sequentially)
+    uint16_t authorPtr = readHeaderPointer(headerAddr + 6);
+    uint16_t namePtr = readHeaderPointer(headerAddr + 8);
+    uint16_t descPtr = readHeaderPointer(headerAddr + 10);
+
+    // Display all strings using the same format
+    printf("Author: ");
+    printROMString(authorPtr);
+    printf("\nName: ");
+    printROMString(namePtr);
+    printf("\nDescription: ");
+    printROMString(descPtr);
+    printf("\n");
+}
+
+static void displayROMHeader(void)
+{
+    // Check for and display SDSC header if present
+    displaySDSCHeader();
+
+    printf("\nReading SEGA ROM Header...\n");
+
+    // ROM Header starts at 0x7FF0
+    uint16_t headerAddr = 0x7FF0;
+
+    // Check "TMR SEGA" signature
+    printf("Signature: ");
+    for (int i = 0; i < 8; i++)
+    {
+        printf("%c", readCartByte(headerAddr + i));
+    }
+    printf("\n");
+
+    // Read product code and version
+    printf("Product Code: %02X%02X\n",
+           readCartByte(headerAddr + 0x0C),
+           readCartByte(headerAddr + 0x0D));
+    printf("Version: %02X\n", readCartByte(headerAddr + 0x0E));
+
+    // Read ROM size
+    uint8_t romSizeCode = readCartByte(headerAddr + 0x0F) & 0x0F;
+    printf("ROM Size: ");
+    switch (romSizeCode)
+    {
+    case 0xa:
+        printf("8KB (Unused)\n");
+        break;
+    case 0xb:
+        printf("16KB (Unused)\n");
+        break;
+    case 0xc:
+        printf("32KB\n");
+        break;
+    case 0xd:
+        printf("48KB (Unused, buggy)\n");
+        break;
+    case 0xe:
+        printf("64KB (Rarely used)\n");
+        break;
+    case 0xf:
+        printf("128KB\n");
+        break;
+    case 0x0:
+        printf("256KB\n");
+        break;
+    case 0x1:
+        printf("512KB (Rarely used)\n");
+        break;
+    case 0x2:
+        printf("1MB (Unused, buggy)\n");
+        break;
+    default:
+        printf("Unknown (0x%X)\n", romSizeCode);
+        break;
+    }
+
+    // Read region code
+    uint8_t region = readCartByte(headerAddr + 0x0F) >> 4;
+    printf("Region: ");
+    switch (region)
+    {
+    case 0x3:
+        printf("SMS Japan\n");
+        break;
+    case 0x4:
+        printf("SMS Export\n");
+        break;
+    case 0x5:
+        printf("Game Gear Japan\n");
+        break;
+    case 0x6:
+        printf("Game Gear Export\n");
+        break;
+    case 0x7:
+        printf("Game Gear International\n");
+        break;
+    default:
+        printf("Unknown (0x%X)\n", region);
+        break;
+    }
+
+    // Read checksum
+    uint16_t checksum = (readCartByte(headerAddr + 0x0A) << 8) | readCartByte(headerAddr + 0x0B);
+    printf("Checksum: 0x%04X\n", checksum);
 }
 
 // Program a byte to the flash at the specified address
@@ -333,6 +518,7 @@ int main(void)
         printf("5 ........ Read Byte\n");
         printf("6 ........ Program Byte\n");
         printf("7 ........ Read Flash (XMODEM upload)\n");
+        printf("8 ........ Display ROM Header\n");
         printf("0 ........ Erase, Program, and Verify Flash (XMODEM download)\n");
         printf("Select an option: ");
 
@@ -406,6 +592,11 @@ int main(void)
         case '7':
             // Read Flash via XMODEM
             xmodemReadFlash();
+            printf("Press any key to continue...\n");
+            getchar();
+            break;
+        case '8':
+            displayROMHeader();
             printf("Press any key to continue...\n");
             getchar();
             break;

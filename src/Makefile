@@ -27,7 +27,7 @@ clean:
 
 $(PROJ): $(OBJS)
 	$(CC) -Wl,-Map=$(PROJ).map -mmcu=$(MCU) $^ -o $@
-	$(SIZE) --format=avr --mcu=atmega328p $@
+	$(SIZE) $@
 
 %.hex: %
 	$(OBJCOPY) -O ihex $< $@
