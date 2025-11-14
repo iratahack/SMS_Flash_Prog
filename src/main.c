@@ -261,16 +261,31 @@ static void displayROMHeader(void)
     // Check for and display SDSC header if present
     displaySDSCHeader();
 
-    printf("\nReading SEGA ROM Header...\n");
-
     // ROM Header starts at 0x7FF0
     uint16_t headerAddr = 0x7FF0;
 
-    // Check "TMR SEGA" signature
+    // Check "TMR SEGA" signature first
+    uint8_t sig[8];
+    for (int i = 0; i < 8; i++)
+    {
+        sig[i] = readCartByte(headerAddr + i);
+    }
+
+    // Verify we have the correct signature before displaying header
+    if (sig[0] != 'T' || sig[1] != 'M' || sig[2] != 'R' || sig[3] != ' ' ||
+        sig[4] != 'S' || sig[5] != 'E' || sig[6] != 'G' || sig[7] != 'A')
+    {
+        printf("\nNo SEGA ROM signature detected.\n");
+        return;
+    }
+
+    printf("\nReading SEGA ROM Header...\n");
+
+    // Display the signature
     printf("Signature: ");
     for (int i = 0; i < 8; i++)
     {
-        printf("%c", readCartByte(headerAddr + i));
+        printf("%c", sig[i]);
     }
     printf("\n");
 
