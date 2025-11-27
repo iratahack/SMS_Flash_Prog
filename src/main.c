@@ -277,7 +277,7 @@ static void displaySDSCHeader(void)
     uint16_t signature = findSDSCHeader();
     if (!signature)
     {
-        printf("No SDSC ROM signature detected.\n");
+        printf(FG_RED "No SDSC ROM signature detected." COLOR_RESET "\n");
         return; // No SDSC header found
     }
 
@@ -333,7 +333,7 @@ static void displayROMHeader(void)
     // Verify we have the correct signature before displaying header
     if ( memcmp(sig, "TMR SEGA", 8) )
     {
-        printf("No SEGA ROM signature detected.");
+        printf(FG_RED "No SEGA ROM signature detected." COLOR_RESET);
         return;
     }
 
@@ -499,7 +499,7 @@ static void getFlashID(void)
         break;
     default:
         move_to(yPos++, 3);
-        printf("No flash device detected.");
+        printf(FG_RED "No flash device detected." COLOR_RESET);
         return;
         break;
     }
@@ -522,7 +522,7 @@ static void eraseFlash(void)
     writeCartByte(0x2aaa, 0x55); // Unlock command
     writeCartByte(0x5555, 0x10); // Chip erase command
     _delay_ms(100);              // Wait for erase to complete
-    printf("\nErase complete.\n");
+    printf("Erase complete.\n");
 }
 
 static void xmodemProgramFlash(void)
@@ -532,7 +532,7 @@ static void xmodemProgramFlash(void)
     flashAddress = 0;
     progCRC32 = 0xFFFFFFFF;
     XMODEM_ReceiveFile(buffer, processBlock);
-    printf("\nProgramming complete. Programmed CRC32: 0x%08lX\n", progCRC32);
+    printf("Programming complete. Programmed CRC32: 0x%08lX\n", progCRC32);
 }
 
 static void processSendBlock(uint8_t *block, uint32_t start, uint16_t length)
@@ -567,11 +567,11 @@ static void checksumFlash(void)
     }
     if (flashCRC32 == progCRC32)
     {
-        printf("\n\033[32mFlash verification successful. CRC32 matches: 0x%08lX\033[0m\n", flashCRC32);
+        printf(FG_GREEN "Flash verification successful. CRC32 matches: 0x%08lX" COLOR_RESET "\n", flashCRC32);
     }
     else
     {
-        printf("\n\033[31mFlash verification failed. Expected CRC32: 0x%08lX, Read CRC32: 0x%08lX\033[0m\n", progCRC32, flashCRC32);
+        printf(FG_RED "Flash verification failed. Expected CRC32: 0x%08lX, Read CRC32: 0x%08lX" COLOR_RESET "\n", progCRC32, flashCRC32);
     }
 }
 
@@ -664,7 +664,7 @@ int main(void)
         move_to(yPos++, 3);
         printf("8 ........ Display SDSC ROM Header");
         move_to(yPos++, 3);
-        printf("0 ........ Erase, Program, and Verify (XMODEM download)");
+        printf("9 ........ Erase, Program, and Verify (XMODEM download)");
         move_to(yPos++, 3);
         printf("Select an option: ");
 
@@ -689,13 +689,13 @@ int main(void)
             {
                 if (readCartByte(addr) != 0xFF)
                 {
-                    printf("\nFlash is NOT blank. First non-blank byte at address 0x%06lX: 0x%02X\n", addr, readCartByte(addr));
+                    printf(FG_RED "Flash is NOT blank. First non-blank byte at address 0x%06lX: 0x%02X" COLOR_RESET "\n", addr, readCartByte(addr));
                     break;
                 }
             }
             if (addr == flashSize)
             {
-                printf("\nBlank check successful.\n");
+                printf(FG_GREEN "Blank check successful." COLOR_RESET "\n");
             }
             printf("Press any key to continue...\n");
             getchar();
@@ -749,7 +749,7 @@ int main(void)
             printf("Press any key to continue...\n");
             getchar();
             break;
-        case '0':
+        case '9':
             eraseFlash();
             xmodemProgramFlash();
             checksumFlash();
