@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include <stdint.h>
 #include <avr/io.h>
 #include <util/delay.h>
@@ -27,6 +28,64 @@ static uint32_t flashSize = 0;
 // CRC32 of flash
 static uint32_t flashCRC32;
 static uint32_t progCRC32;
+
+static uint8_t yPos;
+
+/* ANSI color helpers */
+#define ESC "\x1b"
+#define CSI "\x1b["
+
+#define COLOR_RESET CSI "0m"
+#define COLOR_BRIGHT CSI "1m"
+#define COLOR_DIM CSI "2m"
+
+/* Foreground */
+#define FG_RED CSI "31m"
+#define FG_GREEN CSI "32m"
+#define FG_YELLOW CSI "33m"
+#define FG_BLUE CSI "34m"
+#define FG_MAGENTA CSI "35m"
+#define FG_CYAN CSI "36m"
+#define FG_WHITE CSI "37m"
+
+/* Background */
+#define BG_BLUE CSI "44m"
+#define BG_CYAN CSI "46m"
+
+/* Box drawing - using Unicode box-drawing characters */
+const char *TL = "┌";
+const char *TR = "┐";
+const char *BL = "└";
+const char *BR = "┘";
+const char *H = "─";
+const char *V = "│";
+const char *TH = "┬";
+const char *BH = "┴";
+const char *LH = "├";
+const char *RH = "┤";
+const char *X = "┼";
+
+/* Helpers to move cursor and clear */
+void clear_screen(void)
+{
+    printf(CSI "2J" CSI "H");
+    fflush(stdout);
+}
+void move_to(int r, int c)
+{
+    printf(CSI "%d;%dH", r, c);
+    fflush(stdout);
+}
+void hide_cursor(void)
+{
+    printf(CSI "?25l");
+    fflush(stdout);
+}
+void show_cursor(void)
+{
+    printf(CSI "?25h");
+    fflush(stdout);
+}
 
 static void SPI_initMaster(void)
 {
@@ -218,11 +277,12 @@ static void displaySDSCHeader(void)
     uint16_t signature = findSDSCHeader();
     if (!signature)
     {
+        printf("No SDSC ROM signature detected.\n");
         return; // No SDSC header found
     }
 
     uint16_t headerAddr = signature + 4; // Skip "SDSC" signature
-    printf("\n\nSDSC Header Information:\n");
+    printf("SDSC Header Information:\n");
     printf("Version: %d.%d\n", readCartByte(headerAddr + 0), readCartByte(headerAddr + 1));
 
     // Display release date from BCD format (DD MM YY YY)
@@ -258,9 +318,6 @@ static void displaySDSCHeader(void)
 
 static void displayROMHeader(void)
 {
-    // Check for and display SDSC header if present
-    displaySDSCHeader();
-
     // ROM Header starts at 0x7FF0
     uint16_t headerAddr = 0x7FF0;
 
@@ -271,95 +328,97 @@ static void displayROMHeader(void)
         sig[i] = readCartByte(headerAddr + i);
     }
 
+    move_to(yPos++, 40);
+
     // Verify we have the correct signature before displaying header
-    if (sig[0] != 'T' || sig[1] != 'M' || sig[2] != 'R' || sig[3] != ' ' ||
-        sig[4] != 'S' || sig[5] != 'E' || sig[6] != 'G' || sig[7] != 'A')
+    if ( memcmp(sig, "TMR SEGA", 8) )
     {
-        printf("\nNo SEGA ROM signature detected.\n");
+        printf("No SEGA ROM signature detected.");
         return;
     }
 
-    printf("\nReading SEGA ROM Header...\n");
-
     // Display the signature
-    printf("Signature: ");
+    printf("ROM Signature: ");
     for (int i = 0; i < 8; i++)
     {
         printf("%c", sig[i]);
     }
-    printf("\n");
 
+    move_to(yPos++, 40);
     // Read product code and version
-    printf("Product Code: %02X%02X\n",
+    printf("Product Code : %02X%02X",
            readCartByte(headerAddr + 0x0C),
            readCartByte(headerAddr + 0x0D));
-    printf("Version: %02X\n", readCartByte(headerAddr + 0x0E));
+    move_to(yPos++, 40);
+    printf("Version      : %02X", readCartByte(headerAddr + 0x0E));
 
     // Read ROM size
     uint8_t romSizeCode = readCartByte(headerAddr + 0x0F) & 0x0F;
-    printf("ROM Size: ");
+    move_to(yPos++, 40);
+    printf("ROM Size     : ");
     switch (romSizeCode)
     {
     case 0xa:
-        printf("8KB (Unused)\n");
+        printf("8KB (Unused)");
         break;
     case 0xb:
-        printf("16KB (Unused)\n");
+        printf("16KB (Unused)");
         break;
     case 0xc:
-        printf("32KB\n");
+        printf("32KB");
         break;
     case 0xd:
-        printf("48KB (Unused, buggy)\n");
+        printf("48KB (Unused, buggy)");
         break;
     case 0xe:
-        printf("64KB (Rarely used)\n");
+        printf("64KB (Rarely used)");
         break;
     case 0xf:
-        printf("128KB\n");
+        printf("128KB");
         break;
     case 0x0:
-        printf("256KB\n");
+        printf("256KB");
         break;
     case 0x1:
-        printf("512KB (Rarely used)\n");
+        printf("512KB (Rarely used)");
         break;
     case 0x2:
-        printf("1MB (Unused, buggy)\n");
+        printf("1MB (Unused, buggy)");
         break;
     default:
-        printf("Unknown (0x%X)\n", romSizeCode);
+        printf("Unknown (0x%X)", romSizeCode);
         break;
     }
 
     // Read region code
     uint8_t region = readCartByte(headerAddr + 0x0F) >> 4;
-    printf("Region: ");
+    move_to(yPos++, 40);
+    printf("Region       : ");
     switch (region)
     {
     case 0x3:
-        printf("SMS Japan\n");
+        printf("SMS Japan");
         break;
     case 0x4:
-        printf("SMS Export\n");
+        printf("SMS Export");
         break;
     case 0x5:
-        printf("Game Gear Japan\n");
+        printf("Game Gear Japan");
         break;
     case 0x6:
-        printf("Game Gear Export\n");
+        printf("Game Gear Export");
         break;
     case 0x7:
-        printf("Game Gear International\n");
+        printf("Game Gear International");
         break;
     default:
-        printf("Unknown (0x%X)\n", region);
+        printf("Unknown (0x%X)", region);
         break;
     }
 
     // Read checksum
     uint16_t checksum = (readCartByte(headerAddr + 0x0A) << 8) | readCartByte(headerAddr + 0x0B);
-    printf("Checksum: 0x%04X\n", checksum);
+    move_to(yPos++, 40);
 }
 
 // Program a byte to the flash at the specified address
@@ -413,36 +472,49 @@ static void getFlashID(void)
     switch (manufacturerID)
     {
     case 0xBF:
-        printf("Manufacturer: SST (MCHP)\n");
+        move_to(yPos++, 3);
+        printf("Manufacturer: SST (MCHP)");
         switch (deviceID)
         {
         case 0xB5:
-            printf(" (SST39SF010)\n");
+            move_to(yPos++, 3);
+            printf(" (SST39SF010)");
             flashSize = ((uint32_t)128 * (uint32_t)1024); // 128KB
             break;
         case 0xB6:
-            printf(" (SST39SF020)\n");
+            move_to(yPos++, 3);
+            printf(" (SST39SF020)");
             flashSize = ((uint32_t)256 * (uint32_t)1024); // 256KB
             break;
         case 0xB7:
-            printf(" (SST39SF040)\n");
+            move_to(yPos++, 3);
+            printf(" (SST39SF040)");
             flashSize = ((uint32_t)512 * (uint32_t)1024); // 512KB
             break;
         default:
-            printf("Device      : Unknown (0x%02X)\n", deviceID);
+            move_to(yPos++, 3);
+            printf("Device      : Unknown (0x%02X)", deviceID);
             break;
         }
         break;
     default:
-        printf("Manufacturer: Unknown (0x%02X)\n", manufacturerID);
-        printf("Device      : Unknown (0x%02X)\n", deviceID);
+        move_to(yPos++, 3);
+        printf("No flash device detected.");
+        return;
         break;
     }
+
+    move_to(yPos++, 3);
+    printf("Flash Size  : %luKB", flashSize / 1024);
+    move_to(yPos++, 3);
+    printf("Flash CRC32 : 0x%08lX", flashCRC32);
+    move_to(yPos++, 3);
+    printf("Prog. CRC32 : 0x%08lX", progCRC32);
 }
 
 static void eraseFlash(void)
 {
-    printf("\nErasing flash...\n");
+    printf("Erasing flash...\n");
     writeCartByte(0x5555, 0xaa); // Unlock command
     writeCartByte(0x2aaa, 0x55); // Unlock command
     writeCartByte(0x5555, 0x80); // Erase command
@@ -455,7 +527,7 @@ static void eraseFlash(void)
 
 static void xmodemProgramFlash(void)
 {
-    printf("\nStarting XMODEM file receive for programming...\n");
+    printf("Starting XMODEM file receive for programming...\n");
     // Program Flash
     flashAddress = 0;
     progCRC32 = 0xFFFFFFFF;
@@ -479,14 +551,14 @@ static void xmodemReadFlash(void)
     uint32_t bytesSent;
 
     flashCRC32 = 0xFFFFFFFF;
-    printf("\nStarting XMODEM file send for flash read...\n");
+    printf("Starting XMODEM file send for flash read...\n");
     bytesSent = XMODEM_SendFile(buffer, flashSize, processSendBlock);
     printf("Read complete (%lu bytes sent). CRC32: 0x%08lX\n", bytesSent, flashCRC32);
 }
 
 static void checksumFlash(void)
 {
-    printf("\nChecksuming flash...\n");
+    printf("Checksuming flash...\n");
     flashCRC32 = 0xFFFFFFFF;
     for (uint32_t addr = 0; addr < flashSize; addr++)
     {
@@ -501,6 +573,48 @@ static void checksumFlash(void)
     {
         printf("\n\033[31mFlash verification failed. Expected CRC32: 0x%08lX, Read CRC32: 0x%08lX\033[0m\n", progCRC32, flashCRC32);
     }
+}
+
+void draw_box_frame(int start_row, int start_col, int width, int height, int anim_phase)
+{
+    // top border
+    move_to(start_row, start_col);
+    printf("%s", TL);
+    for (int i = 0; i < width - 2; ++i)
+        printf("%s", H);
+    printf("%s", TR);
+
+    // inner rows (no highlights)
+    for (int r = 0; r < height - 2; ++r)
+    {
+        move_to(start_row + 1 + r, start_col);
+        printf("%s", V);
+        move_to(start_row + 1 + r, start_col + width - 1);
+        printf("%s", V);
+    }
+
+    // bottom border
+    move_to(start_row + height - 1, start_col);
+    printf("%s", BL);
+    for (int i = 0; i < width - 2; ++i)
+        printf("%s", H);
+    printf("%s", BR);
+}
+
+/* Draw banner title */
+void draw_banner(uint8_t *start_row, uint8_t start_col)
+{
+    move_to((*start_row)++, start_col);
+    printf(FG_CYAN "  SMS FLASH PROGRAMMER (C)2025, IrataHack. All Rights Reserved." COLOR_RESET);
+}
+
+/* Helper to repaint the UI after selection or at startup */
+void repaint_ui(uint8_t start_row, uint8_t start_col, uint8_t width, uint8_t height, int anim_phase, int highlight)
+{
+    clear_screen();
+    draw_banner(&start_row, start_col);
+    draw_box_frame(start_row, start_col, width, height, anim_phase);
+    fflush(stdout);
 }
 
 int main(void)
@@ -518,26 +632,46 @@ int main(void)
 
     for (;;)
     {
-        printf("\033[2J\033[H"); // Clear terminal
-        printf("SMS Flash Programmer Initialized\n\n");
+        hide_cursor();
+        repaint_ui(1, 1, 80, 19, 0, 0);
+        yPos = 4;
         getFlashID();
-        printf("Flash Size  : %luKB\n", flashSize / 1024);
-        printf("Flash CRC32 : 0x%08lX\n", flashCRC32);
-        printf("Prog. CRC32 : 0x%08lX\n", progCRC32);
-        printf("=====================================\n");
-        printf("Menu:\n");
-        printf("1 ........ Erase Flash\n");
-        printf("2 ........ Blank Check Flash\n");
-        printf("3 ........ Program Flash (XMODEM download)\n");
-        printf("4 ........ Checksum Flash\n");
-        printf("5 ........ Read Byte\n");
-        printf("6 ........ Program Byte\n");
-        printf("7 ........ Read Flash (XMODEM upload)\n");
-        printf("8 ........ Display ROM Header\n");
-        printf("0 ........ Erase, Program, and Verify Flash (XMODEM download)\n");
+
+        yPos = 4;
+        displayROMHeader();
+
+        yPos = 10;
+        move_to(yPos++, 1);
+        printf("%s", LH);
+        for(int i = 0; i < 78; i++)
+            printf("%s", H);
+        printf("%s", RH);
+
+        move_to(yPos++, 3);
+        printf("1 ........ Erase");
+        move_to(yPos++, 3);
+        printf("2 ........ Blank Check");
+        move_to(yPos++, 3);
+        printf("3 ........ Program (XMODEM download)");
+        move_to(yPos++, 3);
+        printf("4 ........ Checksum");
+        move_to(yPos++, 3);
+        printf("5 ........ Read Byte");
+        move_to(yPos++, 3);
+        printf("6 ........ Program Byte");
+        move_to(yPos++, 3);
+        printf("7 ........ Read ROM (XMODEM upload)");
+        move_to(yPos++, 3);
+        printf("8 ........ Display SDSC ROM Header");
+        move_to(yPos++, 3);
+        printf("0 ........ Erase, Program, and Verify (XMODEM download)");
+        move_to(yPos++, 3);
         printf("Select an option: ");
 
         input = getchar();
+
+        clear_screen();
+        show_cursor();
 
         switch (input)
         {
@@ -550,7 +684,7 @@ int main(void)
         {
             uint32_t addr;
             // Blank Check Flash
-            printf("\nPerforming blank check...\n");
+            printf("Performing blank check...\n");
             for (addr = 0; addr < flashSize; addr++)
             {
                 if (readCartByte(addr) != 0xFF)
@@ -581,7 +715,7 @@ int main(void)
         case '5':
         {
             uint32_t address;
-            printf("\nEnter address to read (hex): 0x");
+            printf("Enter address to read (hex): 0x");
             scanf("%lx", &address);
             uint8_t data = readCartByte(address);
             printf("Data at address 0x%06lX: 0x%02X\n", address, data);
@@ -594,7 +728,7 @@ int main(void)
         {
             uint32_t address;
             uint8_t data;
-            printf("\nEnter address to write (hex): 0x");
+            printf("Enter address to write (hex): 0x");
             scanf("%lx", &address);
             printf("Enter data to write (hex): 0x");
             scanf("%hhx", &data);
@@ -611,7 +745,7 @@ int main(void)
             getchar();
             break;
         case '8':
-            displayROMHeader();
+            displaySDSCHeader();
             printf("Press any key to continue...\n");
             getchar();
             break;
