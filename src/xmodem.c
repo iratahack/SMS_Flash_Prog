@@ -310,7 +310,7 @@ resend:
  * \brief Receive the files through xmodem protocol
  *
  * \param pBuffer  Pointer to received buffers
- * \return 0 for sucess and other value for xmodem error
+ * \return Size of the received file
  */
 uint32_t XMODEM_ReceiveFile(uint8_t *pBuffer, void (*processBlock)(uint8_t *, uint16_t))
 {

@@ -4,6 +4,7 @@
 #include <avr/io.h>
 #include <util/delay.h>
 #include <avr/pgmspace.h>
+#include "mappers.h"
 
 // Put printf strings in program memory (flash)
 #define printf(str, ...) printf_P(PSTR(str), ##__VA_ARGS__)
@@ -27,8 +28,11 @@ static uint32_t flashAddress;
 static uint32_t flashSize = 0;
 // CRC32 of flash
 static uint32_t flashCRC32;
+// CRC32 of programmed data
 static uint32_t progCRC32;
-
+// Current mapper index
+static uint8_t mapperIndex = 0;
+// Y position for text output
 static uint8_t yPos;
 
 /* ANSI color helpers */
@@ -146,7 +150,7 @@ static void SPI_sendAddress(uint16_t address)
     PORTC &= ~_BV(RCLK_PIN);         // Set RCLK low
 }
 
-static void writeCartByte(uint32_t address, uint8_t data)
+void writeCartByte(uint32_t address, uint8_t data)
 {
     // Set data pins as output
     set_data_pins_output();
@@ -169,38 +173,13 @@ static void writeCartByte(uint32_t address, uint8_t data)
     PORTC |= _BV(_CE_PIN);
 }
 
-// Helper: select bank/slot derived from a full flash address and return offset
-static void selectBankSlot(uint32_t address, uint16_t *offset)
-{
-    /* Keep track of the currently-selected bank/slot so we avoid
-       writing the same values repeatedly (saves SPI / write cycles).
-       Initialize to 0xFF so the first call always programs them. */
-    static uint8_t currentBank = 0xFF;
-    static uint8_t currentSlot = 0xFF;
-    uint8_t newBank = (address >> 14) & 0x07;
-    uint8_t newSlot = (address >> 17) & 0x03;
-    *offset = (address & 0x3FFF) | 0x8000;
-
-    /* Only update bank/slot if they changed since last selection. */
-    if (newBank != currentBank)
-    {
-        writeCartByte(0xffff, newBank);
-        currentBank = newBank;
-    }
-    if (newSlot != currentSlot)
-    {
-        writeCartByte(0xfffe, newSlot);
-        currentSlot = newSlot;
-    }
-}
-
 static uint8_t readCartByte(uint32_t address)
 {
     uint8_t data;
     uint16_t offset;
 
     // Select bank/slot and compute offset
-    selectBankSlot(address, &offset);
+    translateAddress(address, &offset);
 
     // Set data pins to input
     set_data_pins_input();
@@ -431,7 +410,7 @@ static void progCartByte(uint32_t address, uint8_t data)
     uint16_t offset;
 
     // Select bank/slot and compute offset
-    selectBankSlot(address, &offset);
+    translateAddress(address, &offset);
 
     writeCartByte(0x5555, 0xaa); // Unlock command
     writeCartByte(0x2aaa, 0x55); // Unlock command
@@ -510,6 +489,8 @@ static void getFlashID(void)
     printf("Flash CRC32 : 0x%08lX", flashCRC32);
     move_to(yPos++, 3);
     printf("Prog. CRC32 : 0x%08lX", progCRC32);
+    move_to(yPos++, 3);
+    printf("Mapper      : %s", getCurrentMapperName());
 }
 
 static void eraseFlash(void)
@@ -527,11 +508,20 @@ static void eraseFlash(void)
 
 static void xmodemProgramFlash(void)
 {
+    uint32_t downloadedSize;
+
     printf("Starting XMODEM file receive for programming...\n");
     // Program Flash
     flashAddress = 0;
     progCRC32 = 0xFFFFFFFF;
-    XMODEM_ReceiveFile(buffer, processBlock);
+    downloadedSize = XMODEM_ReceiveFile(buffer, processBlock);
+    // Calculate checksum over remaining flash size as downloaded
+    // file may be smaller than flash size
+    for (uint32_t addr = downloadedSize; addr < flashSize; addr++)
+    {
+        uint8_t data = readCartByte(addr);
+        updateCRC32(&progCRC32, data);
+    }
     printf("Programming complete. Programmed CRC32: 0x%08lX\n", progCRC32);
 }
 
@@ -630,17 +620,19 @@ int main(void)
     SPI_initMaster();
     set_data_pins_input();
 
+    setMapper(&mappers[0]); // Default to SEGA mapper
+
     for (;;)
     {
         hide_cursor();
         repaint_ui(1, 1, 80, 19, 0, 0);
-        yPos = 4;
+        yPos = 3;
         getFlashID();
 
-        yPos = 4;
+        yPos = 3;
         displayROMHeader();
 
-        yPos = 10;
+        yPos = 9;
         move_to(yPos++, 1);
         printf("%s", LH);
         for(int i = 0; i < 78; i++)
@@ -665,6 +657,8 @@ int main(void)
         printf("8 ........ Display SDSC ROM Header");
         move_to(yPos++, 3);
         printf("9 ........ Erase, Program, and Verify (XMODEM download)");
+        move_to(yPos++, 3);
+        printf("0 ........ Change Mapper (Current: %s)", getCurrentMapperName());
         move_to(yPos++, 3);
         printf("Select an option: ");
 
@@ -755,6 +749,10 @@ int main(void)
             checksumFlash();
             printf("Press any key to continue...\n");
             getchar();
+            break;
+        case '0':
+            mapperIndex = (mapperIndex + 1) % (sizeof(mappers) / sizeof(mappers[0]));
+            setMapper(&mappers[mapperIndex]);
             break;
         default:
             break;
