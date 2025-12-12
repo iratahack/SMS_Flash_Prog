@@ -669,7 +669,7 @@ int main(void)
         move_to(yPos++, 3);
         printf("2 ........ Blank Check");
         move_to(yPos++, 3);
-        printf("3 ........ Program (XMODEM download)");
+        printf("3 ........ Program (XMODEM-1K download)");
         move_to(yPos++, 3);
         printf("4 ........ Checksum");
         move_to(yPos++, 3);
@@ -677,11 +677,11 @@ int main(void)
         move_to(yPos++, 3);
         printf("6 ........ Program Byte");
         move_to(yPos++, 3);
-        printf("7 ........ Read ROM (XMODEM upload)");
+        printf("7 ........ Read ROM (XMODEM-1K upload)");
         move_to(yPos++, 3);
         printf("8 ........ Display SDSC ROM Header");
         move_to(yPos++, 3);
-        printf("9 ........ Erase, Program, and Verify (XMODEM download)");
+        printf("9 ........ Erase, Program (XMODEM-1K download), and Verify");
         move_to(yPos++, 3);
         printf("0 ........ Change Mapper (Current: %s)", getCurrentMapperName());
         move_to(yPos++, 3);
