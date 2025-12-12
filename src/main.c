@@ -589,7 +589,7 @@ static void checksumFlash(void)
     }
 }
 
-void draw_box_frame(int start_row, int start_col, int width, int height, int anim_phase)
+void draw_box_frame(int start_row, int start_col, int width, int height)
 {
     // top border
     move_to(start_row, start_col);
@@ -623,11 +623,11 @@ void draw_banner(uint8_t *start_row, uint8_t start_col)
 }
 
 /* Helper to repaint the UI after selection or at startup */
-void repaint_ui(uint8_t start_row, uint8_t start_col, uint8_t width, uint8_t height, int anim_phase, int highlight)
+void repaint_ui(uint8_t start_row, uint8_t start_col, uint8_t width, uint8_t height)
 {
     clear_screen();
     draw_banner(&start_row, start_col);
-    draw_box_frame(start_row, start_col, width, height, anim_phase);
+    draw_box_frame(start_row, start_col, width, height);
     fflush(stdout);
 }
 
@@ -650,7 +650,7 @@ int main(void)
     for (;;)
     {
         hide_cursor();
-        repaint_ui(1, 1, 80, 19, 0, 0);
+        repaint_ui(1, 1, 80, 19);
         yPos = 3;
         getFlashID();
 
