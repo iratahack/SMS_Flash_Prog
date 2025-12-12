@@ -388,6 +388,11 @@ uint32_t XMODEM_ReceiveFile(uint8_t *pBuffer, void (*processBlock)(uint8_t *, ui
             break;
         }
     }
-    c = XMODEM_GetChar();
+
+    // Flush any remaining characters
+    timeout = ticks + 50; // 0.5 second timeout
+    while (ticks != timeout)
+            c = UDR0;
+
     return (size);
 }
