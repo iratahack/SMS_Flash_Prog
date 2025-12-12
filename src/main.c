@@ -31,7 +31,7 @@ static uint32_t flashCRC32;
 // CRC32 of programmed data
 static uint32_t progCRC32;
 // Current mapper index
-static uint8_t mapperIndex = 0;
+static uint8_t mapperIndex;
 // Y position for text output
 static uint8_t yPos;
 
@@ -644,7 +644,8 @@ int main(void)
     SPI_initMaster();
     set_data_pins_input();
 
-    setMapper(&mappers[detectMapper()]);
+    mapperIndex = detectMapper();
+    setMapper(&mappers[mapperIndex]);
 
     for (;;)
     {
