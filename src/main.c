@@ -173,6 +173,30 @@ void writeCartByte(uint32_t address, uint8_t data)
     PORTC |= _BV(_CE_PIN);
 }
 
+uint8_t readRawCartByte(uint32_t address)
+{
+    uint8_t data;
+
+    // Set data pins to input
+    set_data_pins_input();
+
+    // Send address
+    SPI_sendAddress(address);
+    // _CE low, _RD low
+    PORTC &= ~(_BV(_CE_PIN) | _BV(_RD_PIN));
+
+    // Read data from data pins
+    // Add nop's to allow data to stabilize
+    asm("nop\n"
+        "nop\n");
+    data = read_data_pins();
+
+    // _CE high, _RD high
+    PORTC |= _BV(_RD_PIN) | _BV(_CE_PIN);
+
+    return data;
+}
+
 static uint8_t readCartByte(uint32_t address)
 {
     uint8_t data;
@@ -310,7 +334,7 @@ static void displayROMHeader(void)
     move_to(yPos++, 40);
 
     // Verify we have the correct signature before displaying header
-    if ( memcmp(sig, "TMR SEGA", 8) )
+    if (memcmp(sig, "TMR SEGA", 8))
     {
         printf(FG_RED "No SEGA ROM signature detected." COLOR_RESET);
         return;
@@ -620,7 +644,7 @@ int main(void)
     SPI_initMaster();
     set_data_pins_input();
 
-    setMapper(&mappers[0]); // Default to SEGA mapper
+    setMapper(&mappers[detectMapper()]);
 
     for (;;)
     {
@@ -635,7 +659,7 @@ int main(void)
         yPos = 9;
         move_to(yPos++, 1);
         printf("%s", LH);
-        for(int i = 0; i < 78; i++)
+        for (int i = 0; i < 78; i++)
             printf("%s", H);
         printf("%s", RH);
 
