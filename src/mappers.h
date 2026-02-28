@@ -1,6 +1,8 @@
 #ifndef _MAPPERS_H_
 #define _MAPPERS_H_
 
+#include <stdbool.h>
+
 typedef struct
 {
     const char *name;
