@@ -54,7 +54,6 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            src/SMSFlasher.hex
             src/SMSFlasher.bin
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('release/v{0}', steps.version.outputs.version) }}
           name: SMS Flash Programmer v${{ steps.version.outputs.version }}
@@ -64,7 +63,6 @@ jobs:
             SMS Flash Programmer release v${{ steps.version.outputs.version }}
             
             **Files:**
-            - `SMSFlasher.hex` - Intel HEX format for avrdude
             - `SMSFlasher.bin` - Binary firmware image
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
