@@ -32,13 +32,15 @@ static void sendByte(uint8_t byte)
 
 int main(void)
 {
-    uint8_t v = 0x00;
+    uint8_t v = 0;
     SPI_initMaster();
 
     while (1)
     {
+        if (!v)
+            v = 0x10;
         sendByte(v);
-        v ^= 0x80;
-        _delay_ms(1000);
+        v <<= 1;
+        _delay_ms(250);
     }
 }

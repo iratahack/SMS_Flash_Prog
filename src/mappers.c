@@ -18,7 +18,7 @@ static bool MultiGame_detect(void);
 
 Mapper_t mappers[] = {
     {"SEGA", SEGA_mapperInit, SEGA_translateAddress, SEGA_detect},
-    {"Multi-game", MultiGame_mapperInit, MultiGame_translateAddress, MultiGame_detect}};
+    {"Iratahack", MultiGame_mapperInit, MultiGame_translateAddress, MultiGame_detect}};
 
 void mapperInit(void)
 {

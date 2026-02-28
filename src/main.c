@@ -21,7 +21,7 @@ extern void initTimer(void);
 extern void updateCRC32(uint32_t *crc, const uint8_t data);
 
 // XMODEM receive buffer
-static int8_t buffer[1024];
+static uint8_t buffer[1024];
 // Address pointer for flash programming
 static uint32_t flashAddress;
 // Flash size in bytes
@@ -57,17 +57,17 @@ static uint8_t yPos;
 #define BG_CYAN CSI "46m"
 
 /* Box drawing - using Unicode box-drawing characters */
-const char *TL = "┌";
-const char *TR = "┐";
-const char *BL = "└";
-const char *BR = "┘";
-const char *H = "─";
-const char *V = "│";
-const char *TH = "┬";
-const char *BH = "┴";
-const char *LH = "├";
-const char *RH = "┤";
-const char *X = "┼";
+#define BOX_TL  PSTR("┌")
+#define BOX_TR  PSTR("┐")
+#define BOX_BL  PSTR("└")
+#define BOX_BR  PSTR("┘")
+#define BOX_H   PSTR("─")
+#define BOX_V   PSTR("│")
+#define BOX_TH  PSTR("┬")
+#define BOX_BH  PSTR("┴")
+#define BOX_LH  PSTR("├")
+#define BOX_RH  PSTR("┤")
+#define BOX_X   PSTR("┼")
 
 /* Helpers to move cursor and clear */
 void clear_screen(void)
@@ -593,33 +593,33 @@ void draw_box_frame(int start_row, int start_col, int width, int height)
 {
     // top border
     move_to(start_row, start_col);
-    printf("%s", TL);
+    printf("%S", BOX_TL);
     for (int i = 0; i < width - 2; ++i)
-        printf("%s", H);
-    printf("%s", TR);
+        printf("%S", BOX_H);
+    printf("%S", BOX_TR);
 
     // inner rows (no highlights)
     for (int r = 0; r < height - 2; ++r)
     {
         move_to(start_row + 1 + r, start_col);
-        printf("%s", V);
+        printf("%S", BOX_V);
         move_to(start_row + 1 + r, start_col + width - 1);
-        printf("%s", V);
+        printf("%S", BOX_V);
     }
 
     // bottom border
     move_to(start_row + height - 1, start_col);
-    printf("%s", BL);
+    printf("%S", BOX_BL);
     for (int i = 0; i < width - 2; ++i)
-        printf("%s", H);
-    printf("%s", BR);
+        printf("%S", BOX_H);
+    printf("%S", BOX_BR);
 }
 
 /* Draw banner title */
 void draw_banner(uint8_t *start_row, uint8_t start_col)
 {
     move_to((*start_row)++, start_col);
-    printf(FG_CYAN "  SMS FLASH PROGRAMMER (C)2025, IrataHack. All Rights Reserved." COLOR_RESET);
+    printf(FG_CYAN "  SMS FLASH PROGRAMMER (C)2026, IrataHack. All Rights Reserved." COLOR_RESET);
 }
 
 /* Helper to repaint the UI after selection or at startup */
@@ -659,10 +659,10 @@ int main(void)
 
         yPos = 9;
         move_to(yPos++, 1);
-        printf("%s", LH);
+        printf("%S", BOX_LH);
         for (int i = 0; i < 78; i++)
-            printf("%s", H);
-        printf("%s", RH);
+            printf("%S", BOX_H);
+        printf("%S", BOX_RH);
 
         move_to(yPos++, 3);
         printf("1 ........ Erase");

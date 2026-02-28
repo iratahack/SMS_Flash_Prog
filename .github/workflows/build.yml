@@ -1,0 +1,70 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    tags:
+      - 'release/v*'
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Create GitHub Release'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install AVR toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-avr avr-libc
+      
+      - name: Build firmware
+        run: |
+          cd src
+          make clean
+          make SMSFlasher.hex
+      
+      - name: Extract version from tag
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/release/v* ]]; then
+            # Extract version from tag: release/vX.Y.Z -> X.Y.Z
+            VERSION="${GITHUB_REF#refs/tags/release/v}"
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event.inputs.create_release }}" == "true" ]]; then
+            # Manual trigger with release requested
+            echo "version=latest" >> $GITHUB_OUTPUT
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_release=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Create Release
+        if: steps.version.outputs.should_release == 'true'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            src/SMSFlasher.hex
+            src/SMSFlasher.bin
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('release/v{0}', steps.version.outputs.version) }}
+          name: SMS Flash Programmer v${{ steps.version.outputs.version }}
+          draft: false
+          prerelease: ${{ steps.version.outputs.version == 'latest' }}
+          body: |
+            SMS Flash Programmer release v${{ steps.version.outputs.version }}
+            
+            **Files:**
+            - `SMSFlasher.hex` - Intel HEX format for avrdude
+            - `SMSFlasher.bin` - Binary firmware image
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

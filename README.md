@@ -22,39 +22,25 @@ usbipd: info: Using WSL distribution 'Ubuntu-22.04' to attach; the device will b
 usbipd: error: WSL kernel is not USBIP capable; update with 'wsl --update'.
 ```
 
-## Menu Options
+## Hardware Interface
 
-The firmware presents a simple serial menu. Below are the options shown in `main()` and what each one does.
+The programmer accesses the SMS cartridge slot using the following bus signals:
 
-- 1 — Erase Flash
-  - Performs a full chip erase sequence (unlock + chip-erase). This sets all bytes to 0xFF and is typically done before programming a new ROM image.
+- **Address Bus (A0-A15)**: Driven by SPI-controlled 74HC595 shift registers
+- **Data Bus (D0-D7)**: Bidirectional GPIO on Arduino pins D2-D9
+- **Control Signals**:
+  - _CE (Chip Enable): PC1
+  - _RD (Read Enable): PC2
+  - _WR (Write Enable): PC3
+  - RCLK (Register Clock for address latching): PC0
 
-- 2 — Blank Check Flash
-  - Scans the entire detected flash size and verifies every byte equals 0xFF. If a non-blank byte is found the menu reports the first non-blank address and byte value.
+The programmer supports dual cartridge mappers (SEGA standard and Iratahack), automatically detecting the mapper type at boot and allowing manual switching via the menu.
 
-- 3 — Program Flash (XMODEM download)
-  - The device waits for an XMODEM transfer (128-byte packets). Received data is programmed sequentially starting at flash address 0x000000. The programmer updates an internal "Prog. CRC32" while writing.
-  - Typical host workflow: start option 3 on the device, then from the host-side serial session send the ROM image with an XMODEM sender (for example `sx rom.bin` when using lrzsz inside the same serial terminal).
+## Usage
 
-- 4 — Checksum Flash
-  - Computes a CRC32 across the entire flash and prints the result. If a previous programming run produced a "Prog. CRC32", this option compares that value to the read-back CRC and reports verification success/failure.
+The firmware presents a serial menu interface for ROM programming and verification. Connect via serial terminal at 2000000 baud to interact with the device.
 
-- 5 — Read Byte
-  - Prompts for a hex address (the prompt includes "0x"). Enter the address in hexadecimal (e.g. `0F1234`). The device reads and prints the single byte at that address.
-
-- 6 — Program Byte
-  - Prompts for a hex address and a hex data byte (both entered in hex). The single byte is programmed to the selected flash address. This uses the same program command sequence used for block programming (unlock + write).
-
-- 7 — Read Flash (XMODEM upload)
-  - Sends the entire flash contents back to the host using XMODEM. Useful to create a full dump of the cartridge. On the host, receive with an XMODEM receiver (for example `rx dump.bin` when using lrzsz).
-
-- 0 — Erase, Program, and Verify Flash (XMODEM download)
-  - Convenience sequence that runs: Erase Flash, Program Flash (XMODEM download) and then Checksum Flash (verify).
-
-Notes and tips
-- The firmware detects flash type/size using `getFlashID()`; ensure a valid flash is detected before programming to avoid incorrect size assumptions.
-
-Example (host-side, when connected to the device serial terminal):
+Example workflow (host-side, when connected to the device serial terminal):
 
 1. Program a ROM image (select menu option 3 on the device):
 
