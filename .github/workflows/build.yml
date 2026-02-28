@@ -31,7 +31,7 @@ jobs:
         run: |
           cd src
           make clean
-          make SMSFlasher.hex
+          make all
       
       - name: Extract version from tag
         id: version
