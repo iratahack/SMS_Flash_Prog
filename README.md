@@ -8,10 +8,10 @@ host-side workflows for sending/receiving ROM images.
 
 ## Arduino COM Port Setup for WSL
 
-After connecting the programmer via USB to a Windows machine, enter the command below in an administrator PowerShell to attach the Arduino COM port from Windoes to WLS.
+After connecting the programmer via USB to a Windows machine, enter the command below in an administrator PowerShell to attach the Arduino COM port from Windows to WSL.
 
 ```sh
-usbipd list # look for USB-SERIAL CH340 (COM4) or simalar
+usbipd list # look for USB-SERIAL CH340 (COM4) or similar
 usbipd attach --wsl --busid <BUSID>
 ```
 
