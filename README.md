@@ -80,6 +80,7 @@ administrator PowerShell to attach the Arduino COM port from Windows to WSL:
 
 ```sh
 usbipd list # look for USB-SERIAL CH340 (COM4) or similar
+usbipd bind --busid <BUSIS> # as administrator
 usbipd attach --wsl --busid <BUSID>
 ```
 
@@ -99,7 +100,7 @@ use a terminal that supports both (e.g. `picocom`, `minicom`, or the serial clie
 Windows Terminal):
 
 ```sh
-picocom -b 2000000 /dev/ttyUSB0
+picocom -b 1000000 /dev/ttyUSB0
 ```
 
 The firmware redraws a full-screen menu on each iteration:
