@@ -18,7 +18,7 @@ cartridge slot through the following bus signals:
 KiCad design files for the programmer shield — including schematic, PCB, and Gerbers — live in
 [`Arduino_SMS_Cart_Programmer/`](Arduino_SMS_Cart_Programmer/).
 
-### Supported flash chips
+### Supported flash chips & Carts
 
 The firmware auto-detects the flash device using the AMD/SST JEDEC ID command sequence and
 currently recognises the SST39SF family:
@@ -28,6 +28,8 @@ currently recognises the SST39SF family:
 | `0xBF` (SST)    | `0xB5`    | SST39SF010 | 128 KB |
 | `0xBF` (SST)    | `0xB6`    | SST39SF020 | 256 KB |
 | `0xBF` (SST)    | `0xB7`    | SST39SF040 | 512 KB |
+
+The programmer has been tested with the flash cart by [ichigobankai](https://github.com/ichigobankai/SMS_PCB_SLOT1-2_2GAL_DIP)
 
 ### Supported mappers
 
@@ -94,14 +96,15 @@ usbipd: error: WSL kernel is not USBIP capable; update with 'wsl --update'.
 
 ## Using the programmer
 
-Once the firmware is running, connect a serial terminal to the device at **2,000,000 baud**,
-8-N-1, no flow control. The UI uses ANSI colour and Unicode box-drawing characters, so
-use a terminal that supports both (e.g. `picocom`, `minicom`, or the serial client in
-Windows Terminal):
+Remember to disconnect the USB connector (power) before connecting or disconnecting a Sega Master System cartridge to
+avoid damaging the cartridge or the programmer. When connecting the cartridge, insert the cartridge into the connector
+with the front of the cartridge facing the Arduino.
 
-```sh
-picocom -b 1000000 /dev/ttyUSB0
-```
+Once the firmware is running, connect a serial terminal to the device at **1,000,000 baud**,
+8-N-1, no flow control. The UI uses ANSI colour and Unicode box-drawing characters, so
+use a terminal that supports both (e.g. `picocom`, `minicom`). On Windows,
+[ExtraPUTTY](https://sourceforge.net/projects/extraputty/) is a good choice and supports
+XMODEM-1K for file transfer.
 
 The firmware redraws a full-screen menu on each iteration:
 
@@ -126,23 +129,7 @@ part is installed.
 
 The firmware uses **XMODEM-1K** (1024-byte packets with CRC-16). The receive path also
 accepts classic 128-byte XMODEM packets, but the send path always transmits 1K blocks.
-Use a host XMODEM implementation such as `lrzsz` (`sx` / `rx`) or the built-in XMODEM
-support in `picocom`/`minicom`.
-
-Program a ROM image (select menu option `3` on the device first, then from the host):
-
-```sh
-sx rom.bin < /dev/ttyUSB0 > /dev/ttyUSB0
-```
-
-Read a full dump from the device (select menu option `7` first):
-
-```sh
-rx cart_dump.bin < /dev/ttyUSB0 > /dev/ttyUSB0
-```
-
-If you use `picocom`, you can bind send/receive to a keystroke via `--send-cmd "sx -vv"`
-and `--receive-cmd "rx -vv"`, which avoids having to detach from the serial session.
+ExtraPUTTY includes XMODEM-1K support for both sending and receiving.
 
 ## Repository layout
 
