@@ -1,5 +1,6 @@
 #include <time.h>
 #include <avr/interrupt.h>
+#include "common.h"
 
 // System ticks count
 volatile uint16_t ticks = 0;

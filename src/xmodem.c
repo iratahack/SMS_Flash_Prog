@@ -41,10 +41,7 @@
 /*----------------------------------------------------------------------------
  *        Headers
  *----------------------------------------------------------------------------*/
-#include <stdio.h>
-#include <stdint.h>
-#include <avr/io.h>
-#include <avr/pgmspace.h>
+#include "common.h"
 
 extern volatile uint16_t ticks;
 

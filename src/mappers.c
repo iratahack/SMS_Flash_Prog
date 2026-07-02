@@ -1,5 +1,5 @@
 #include <stddef.h>
-#include <stdint.h>
+#include "common.h"
 #include "mappers.h"
 
 extern void writeCartByte(uint32_t address, uint8_t data);

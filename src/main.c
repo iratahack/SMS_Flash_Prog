@@ -1,13 +1,7 @@
-#include <stdio.h>
 #include <string.h>
-#include <stdint.h>
-#include <avr/io.h>
 #include <util/delay.h>
-#include <avr/pgmspace.h>
+#include "common.h"
 #include "mappers.h"
-
-// Put printf strings in program memory (flash)
-#define printf(str, ...) printf_P(PSTR(str), ##__VA_ARGS__)
 
 #define RCLK_PIN PC0
 #define _CE_PIN PC1
@@ -34,40 +28,6 @@ static uint32_t progCRC32;
 static uint8_t mapperIndex;
 // Y position for text output
 static uint8_t yPos;
-
-/* ANSI color helpers */
-#define ESC "\x1b"
-#define CSI "\x1b["
-
-#define COLOR_RESET CSI "0m"
-#define COLOR_BRIGHT CSI "1m"
-#define COLOR_DIM CSI "2m"
-
-/* Foreground */
-#define FG_RED CSI "31m"
-#define FG_GREEN CSI "32m"
-#define FG_YELLOW CSI "33m"
-#define FG_BLUE CSI "34m"
-#define FG_MAGENTA CSI "35m"
-#define FG_CYAN CSI "36m"
-#define FG_WHITE CSI "37m"
-
-/* Background */
-#define BG_BLUE CSI "44m"
-#define BG_CYAN CSI "46m"
-
-/* Box drawing - using Unicode box-drawing characters */
-#define BOX_TL  PSTR("┌")
-#define BOX_TR  PSTR("┐")
-#define BOX_BL  PSTR("└")
-#define BOX_BR  PSTR("┘")
-#define BOX_H   PSTR("─")
-#define BOX_V   PSTR("│")
-#define BOX_TH  PSTR("┬")
-#define BOX_BH  PSTR("┴")
-#define BOX_LH  PSTR("├")
-#define BOX_RH  PSTR("┤")
-#define BOX_X   PSTR("┼")
 
 /* Helpers to move cursor and clear */
 void clear_screen(void)

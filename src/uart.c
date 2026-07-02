@@ -1,5 +1,4 @@
-#include <stdio.h>
-#include <avr/io.h>
+#include "common.h"
 
 int uart_putchar(char c, FILE *stream)
 {
