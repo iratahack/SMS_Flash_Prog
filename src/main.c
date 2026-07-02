@@ -231,6 +231,11 @@ static uint16_t readHeaderPointer(uint16_t addr)
     return readCartByte(addr) | (readCartByte(addr + 1) << 8);
 }
 
+static uint8_t bcdToUint8(uint8_t bcd)
+{
+    return ((bcd >> 4) & 0x0F) * 10 + (bcd & 0x0F);
+}
+
 // Helper function to print a null-terminated string from ROM (file scope)
 static void printROMString(uint16_t strPtr)
 {
@@ -285,18 +290,18 @@ static void displaySDSCHeader(void)
     }
 
     uint16_t headerAddr = signature + 4; // Skip "SDSC" signature
+    uint8_t versionMajor = bcdToUint8(readCartByte(headerAddr + 0));
+    uint8_t versionMinor = bcdToUint8(readCartByte(headerAddr + 1));
+
     printf("SDSC Header Information:\n");
-    printf("Version: %d.%d\n", readCartByte(headerAddr + 0), readCartByte(headerAddr + 1));
+    printf("Version: %u.%u\n", versionMajor, versionMinor);
 
     // Display release date from BCD format (DD MM YY YY)
-    uint8_t day = readCartByte(headerAddr + 2);
-    uint8_t month = readCartByte(headerAddr + 3);
+    uint8_t day = bcdToUint8(readCartByte(headerAddr + 2));
+    uint8_t month = bcdToUint8(readCartByte(headerAddr + 3));
     uint8_t yearLow = readCartByte(headerAddr + 4);
     uint8_t yearHigh = readCartByte(headerAddr + 5);
 
-    // Convert from BCD
-    day = ((day >> 4) & 0x0F) * 10 + (day & 0x0F);
-    month = ((month >> 4) & 0x0F) * 10 + (month & 0x0F);
     uint16_t year = (((yearHigh >> 4) & 0x0F) * 1000) +
                     ((yearHigh & 0x0F) * 100) +
                     (((yearLow >> 4) & 0x0F) * 10) +
