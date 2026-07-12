@@ -82,6 +82,8 @@ uint8_t detectMapper(void)
 
 static void SEGA_mapperInit(void)
 {
+    writeCartByte(0xfffc, 0x00); // RAM
+    writeCartByte(0xfffd, 0x00); // Slot 0
     writeCartByte(0xfffe, 0x01); // Slot 1
     writeCartByte(0xffff, 0x02); // Slot 2
 }

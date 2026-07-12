@@ -7,6 +7,7 @@
 #define _CE_PIN PC1
 #define _RD_PIN PC2
 #define _WR_PIN PC3
+#define _RST_PIN PC4
 
 extern uint32_t XMODEM_ReceiveFile(uint8_t *pBuffer, void (*processBlock)(uint8_t *, uint16_t));
 extern uint32_t XMODEM_SendFile(uint8_t *pBuffer, uint32_t length, void (*processBlock)(uint8_t *, uint32_t, uint16_t));
@@ -284,8 +285,9 @@ static void displaySDSCHeader(void)
     printf("\n");
 }
 
-static void displayROMHeader(void)
+static uint32_t displayROMHeader(void)
 {
+    uint32_t size = 0;
     // ROM Header starts at 0x7FF0
     uint16_t headerAddr = 0x7FF0;
 
@@ -302,7 +304,7 @@ static void displayROMHeader(void)
     if (memcmp(sig, "TMR SEGA", 8))
     {
         printf(FG_RED "No SEGA ROM signature detected." COLOR_RESET);
-        return;
+        return size;
     }
 
     // Display the signature
@@ -328,30 +330,39 @@ static void displayROMHeader(void)
     {
     case 0xa:
         printf("8KB (Unused)");
+        size = ((uint32_t)8 * (uint32_t)1024); // 8KB
         break;
     case 0xb:
         printf("16KB (Unused)");
+        size = ((uint32_t)16 * (uint32_t)1024); // 16KB
         break;
     case 0xc:
         printf("32KB");
+        size = ((uint32_t)32 * (uint32_t)1024); // 32KB
         break;
     case 0xd:
         printf("48KB (Unused, buggy)");
+        size = ((uint32_t)48 * (uint32_t)1024); // 48KB
         break;
     case 0xe:
         printf("64KB (Rarely used)");
+        size = ((uint32_t)64 * (uint32_t)1024); // 64KB
         break;
     case 0xf:
         printf("128KB");
+        size = ((uint32_t)128 * (uint32_t)1024); // 128KB
         break;
     case 0x0:
         printf("256KB");
+        size = ((uint32_t)256 * (uint32_t)1024); // 256KB
         break;
     case 0x1:
         printf("512KB (Rarely used)");
+        size = ((uint32_t)512 * (uint32_t)1024); // 512KB
         break;
     case 0x2:
         printf("1MB (Unused, buggy)");
+        size = ((uint32_t)1024 * (uint32_t)1024); // 1MB
         break;
     default:
         printf("Unknown (0x%X)", romSizeCode);
@@ -387,6 +398,8 @@ static void displayROMHeader(void)
     // Read checksum
     uint16_t checksum = (readCartByte(headerAddr + 0x0A) << 8) | readCartByte(headerAddr + 0x0B);
     move_to(yPos++, 40);
+
+    return size;
 }
 
 // Program a byte to the flash at the specified address
@@ -468,14 +481,14 @@ static void getFlashID(void)
     default:
         move_to(yPos++, 3);
         printf(FG_RED "No flash device detected." COLOR_RESET);
-        return;
+        yPos++;
         break;
     }
 
     move_to(yPos++, 3);
-    printf("Flash Size  : %luKB", flashSize / 1024);
+    printf("ROM Size    : %luKB (S to change)", flashSize / 1024);
     move_to(yPos++, 3);
-    printf("Flash CRC32 : 0x%08lX", flashCRC32);
+    printf("ROM CRC32   : 0x%08lX", flashCRC32);
     move_to(yPos++, 3);
     printf("Prog. CRC32 : 0x%08lX", progCRC32);
     move_to(yPos++, 3);
@@ -601,8 +614,10 @@ int main(void)
     uint8_t input;
 
     // Configure control pins as output and set them high
-    DDRC = _BV(RCLK_PIN) | _BV(_CE_PIN) | _BV(_RD_PIN) | _BV(_WR_PIN); // Set RCLK_PIN, _CE_PIN, _RD_PIN, _WR_PIN as output
-    PORTC = _BV(_CE_PIN) | _BV(_RD_PIN) | _BV(_WR_PIN);                // Set _CE_PIN, _RD_PIN, _WR_PIN high
+    DDRC = _BV(RCLK_PIN) | _BV(_CE_PIN) | _BV(_RD_PIN) | _BV(_WR_PIN) | _BV(_RST_PIN); // Set RCLK_PIN, _CE_PIN, _RD_PIN, _WR_PIN as output
+    PORTC = _BV(_CE_PIN) | _BV(_RD_PIN) | _BV(_WR_PIN) | _BV(_RST_PIN);                // Set _CE_PIN, _RD_PIN, _WR_PIN high, _RST_PIN low
+    _delay_ms(10); // Wait for reset to settle
+    PORTC = PORTC | _BV(_RST_PIN); // Set _RST_PIN high
 
     initUART();
     initTimer();
@@ -743,6 +758,17 @@ int main(void)
         case '0':
             mapperIndex = (mapperIndex + 1) % (sizeof(mappers) / sizeof(mappers[0]));
             setMapper(&mappers[mapperIndex]);
+            break;
+        case 's':
+        case 'S':
+            printf("Enter new ROM size in KB: ");
+            uint32_t newSizeKB;
+            scanf("%lu", &newSizeKB);
+            flashSize = newSizeKB * 1024;
+            printf("ROM size changed to %luKB.\n", newSizeKB);
+            printf("Press any key to continue...\n");
+            getchar(); // Consume newline
+            getchar(); // Wait for key
             break;
         default:
             break;
