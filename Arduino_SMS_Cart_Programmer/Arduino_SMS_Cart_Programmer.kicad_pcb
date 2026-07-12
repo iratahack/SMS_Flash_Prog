@@ -5299,7 +5299,7 @@
 		(layer "Margin")
 		(uuid "95f51917-58f5-4e33-ab85-b1485b3df4d8")
 	)
-	(gr_text "SMS Flash Cartridge Programmer\n(C) 2025, Digital X-fer. All Rights Reserved."
+	(gr_text "SMS Flash Cartridge Programmer Rev B\n(C) 2025, Digital X-fer. All Rights Reserved."
 		(at 133.5 133 0)
 		(layer "F.SilkS")
 		(uuid "816be908-bbda-47ff-9929-9e0f0d2a2ce5")
