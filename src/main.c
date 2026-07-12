@@ -298,7 +298,9 @@ static uint32_t displayROMHeader(void)
         sig[i] = readCartByte(headerAddr + i);
     }
 
+    yPos = 3;
     move_to(yPos++, 40);
+    printf("Cart Header Info\n");
 
     // Verify we have the correct signature before displaying header
     if (memcmp(sig, "TMR SEGA", 8))
@@ -307,6 +309,7 @@ static uint32_t displayROMHeader(void)
         return size;
     }
 
+    move_to(yPos++, 40);
     // Display the signature
     printf("ROM Signature: ");
     for (int i = 0; i < 8; i++)
@@ -437,6 +440,8 @@ static void getFlashID(void)
 {
     uint8_t manufacturerID, deviceID;
 
+    yPos = 3;
+
     // Send command to read ID
     writeCartByte(0x5555, 0xaa); // Unlock command
     writeCartByte(0x2aaa, 0x55); // Unlock command
@@ -481,7 +486,35 @@ static void getFlashID(void)
     default:
         move_to(yPos++, 3);
         printf(FG_RED "No flash device detected." COLOR_RESET);
-        yPos++;
+        move_to(yPos++, 3);
+        printf("Auto-detecting ROM size...");
+        // Attempt to auto-detect ROM size by looking for at least 8KB of 0xFF at the end of the ROM
+        for (uint32_t testSize = (uint32_t)32 * 1024; testSize <= (uint32_t)512 * 1024; testSize *= 2)
+        {
+            uint8_t hasTrailingFF = 1;
+            for (uint32_t offset = testSize - ((uint32_t)8 * 1024); offset < testSize; offset++)
+            {
+                if (readCartByte(offset) != 0xFF)
+                {
+                    hasTrailingFF = 0;
+                    break;
+                }
+            }
+
+            if (hasTrailingFF)
+            {
+                flashSize = testSize;
+                move_to(yPos++, 3);
+                printf(FG_GREEN "Detected ROM size: %luKB" COLOR_RESET, flashSize / 1024);
+                break;
+            }
+        }
+        if (flashSize == 0)
+        {
+            move_to(yPos++, 3);
+            printf(FG_RED "Unable to detect ROM size." COLOR_RESET);
+        }
+
         break;
     }
 
@@ -631,10 +664,9 @@ int main(void)
     {
         hide_cursor();
         repaint_ui(1, 1, 80, 19);
-        yPos = 3;
+
         getFlashID();
 
-        yPos = 3;
         displayROMHeader();
 
         yPos = 9;
