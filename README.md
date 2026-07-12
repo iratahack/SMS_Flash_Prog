@@ -13,7 +13,7 @@ cartridge slot through the following bus signals:
 
 - **Address bus (A0–A15)**: driven by two cascaded 74HC595 shift registers clocked over the ATmega's SPI peripheral (MOSI=PB3, SCK=PB5, SS=PB2). A high pulse on **RCLK** (PC0) latches the shifted address onto the cartridge bus.
 - **Data bus (D0–D7)**: bidirectional GPIO on Arduino pins D2–D9 (PD2–PD7 and PB0–PB1). Direction is toggled per read/write.
-- **Control signals**: `_CE` on PC1, `_RD` on PC2, `_WR` on PC3 (all active low).
+- **Control signals**: `_CE` on PC1, `_RD` on PC2, `_WR` on PC3, `_RST` on PC4 (all active low).
 
 KiCad design files for the programmer shield — including schematic, PCB, and Gerbers — live in
 [`Arduino_SMS_Cart_Programmer/`](Arduino_SMS_Cart_Programmer/).
@@ -120,6 +120,7 @@ The firmware redraws a full-screen menu on each iteration:
 | `8` | Display SDSC ROM header (if present) |
 | `9` | Erase, program (XMODEM-1K), and verify in one step |
 | `0` | Toggle between detected mappers (SEGA / Iratahack) |
+| `s` | Change ROM/flash size |
 
 The flash size used by operations `2`, `4`, `7`, and `9` is determined by the JEDEC ID
 read at each menu redraw, so the programmer adapts automatically to whichever SST39SF

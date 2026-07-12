@@ -31,7 +31,7 @@ There is no test suite. Verification is done on real hardware: connect a serial 
 
 ### Hardware bus
 
-The cartridge's 16-bit address bus is driven by two cascaded 74HC595 shift registers over the ATmega's SPI (MOSI/SCK/SS on PB3/PB5/PB2). A high pulse on `RCLK` (PC0) latches the shifted address. Data bus D0–D7 is bidirectional GPIO on PD2–PD7 + PB0–PB1 (toggled input/output per read/write). Control lines `_CE`/`_RD`/`_WR` are on PC1/PC2/PC3. This means any bus access is: SPI-shift address → pulse RCLK → set data direction → toggle control strobes → read/write port. Bus timing inside `readRawCartByte`/`writeCartByte` relies on inline `nop`s — don't restructure those without measuring.
+The cartridge's 16-bit address bus is driven by two cascaded 74HC595 shift registers over the ATmega's SPI (MOSI/SCK/SS on PB3/PB5/PB2). A high pulse on `RCLK` (PC0) latches the shifted address. Data bus D0–D7 is bidirectional GPIO on PD2–PD7 + PB0–PB1 (toggled input/output per read/write). Control lines `_CE`/`_RD`/`_WR`/`_RST` are on PC1/PC2/PC3/PC4. This means any bus access is: SPI-shift address → pulse RCLK → set data direction → toggle control strobes → read/write port. Bus timing inside `readRawCartByte`/`writeCartByte` relies on inline `nop`s — don't restructure those without measuring.
 
 ### Mapper abstraction (`src/mappers.{h,c}`)
 
